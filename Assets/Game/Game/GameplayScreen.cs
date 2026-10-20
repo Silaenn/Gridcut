@@ -82,8 +82,20 @@ namespace GridCut.Game
             WinOverlay.SetActive(false);
         }
 
-        void OnRectPlaced(int ci, RectI r) => AudioService.Play("place");
-        void OnRectRemoved(int ci, RectI r) => AudioService.Play("tap");
+        void OnRectPlaced(int ci, RectI r)
+        {
+            Board.ShowPlaced();
+            UpdateProgress();
+            AudioService.Play("place");
+        }
+
+        void OnRectRemoved(int ci, RectI r)
+        {
+            Board.ShowPlaced();
+            UpdateProgress();
+            AudioService.Play("tap");
+        }
+
         void OnInvalid() => AudioService.Play("invalid");
 
         void OnSolved(bool solved)
@@ -131,15 +143,13 @@ namespace GridCut.Game
             AppRoot.Instance.OpenLevelSelect();
         }
 
-        public void DoUndo() { _session.Undo(); Board.ShowPlaced(); UpdateProgress(); }
-        public void DoReset() { _session.Reset(); Board.ShowPlaced(); UpdateProgress(); }
+        public void DoUndo() => _session.Undo();
+        public void DoReset() => _session.Reset();
 
         public void DoHint()
         {
             if (_session == null || _session.IsSolved) return;
             _session.Hint();
-            Board.ShowPlaced();
-            UpdateProgress();
         }
 
         public void DoBack()

@@ -27,6 +27,7 @@ namespace GridCut.Game
         bool _dragging;
         int _dc0, _dr0, _dc1, _dr1;
         RectTransform _slot;
+        Coroutine _flash;
 
         void Awake() => _rt = (RectTransform)transform;
 
@@ -180,6 +181,7 @@ namespace GridCut.Game
         void Begin(PointerEventData e)
         {
             if (Session == null || Session.IsSolved) return;
+            if (_flash != null) { StopCoroutine(_flash); _flash = null; }   // cancel invalid flash
             if (!TryCell(e.position, out int c, out int r)) return;
             _dragging = true;
             _dc0 = _dc1 = c;
@@ -203,8 +205,8 @@ namespace GridCut.Game
             if (!_dragging) return;
             _dragging = false;
             if (TryCell(e.position, out int c, out int r)) { _dc1 = c; _dr1 = r; }
-            if (_preview != null) _preview.enabled = false;
             var rect = PuzzleSession.Snap(_dc0, _dr0, _dc1, _dr1, Cols, Rows);
+            if (!Session.CouldPlace(rect)) _flash = StartCoroutine(FlashInvalid(rect));
             Session.Place(rect);
         }
 
@@ -236,11 +238,27 @@ namespace GridCut.Game
                 ? new Color(0.30f, 0.85f, 0.35f, 0.5f)
                 : new Color(0.92f, 0.22f, 0.22f, 0.42f);
             _preview.enabled = true;
+            FitPreview(rect);
+        }
+
+        void FitPreview(in RectI rect)
+        {
             _preview.rectTransform.anchorMin = _preview.rectTransform.anchorMax = new Vector2(0.5f, 0.5f);
             _preview.rectTransform.sizeDelta = new Vector2(rect.W * Cell - 3f, rect.H * Cell - 3f);
             _preview.rectTransform.anchoredPosition = new Vector2(
                 -(Cols * Cell) / 2f + (rect.X + rect.W * 0.5f) * Cell,
                  (Rows * Cell) / 2f - (rect.Y + rect.H * 0.5f) * Cell);
+        }
+
+        /// <summary>Red flash on a rejected drop so invalid taps are visible, not just audible.</summary>
+        System.Collections.IEnumerator FlashInvalid(RectI rect)
+        {
+            _preview.color = new Color(0.92f, 0.22f, 0.22f, 0.55f);
+            _preview.enabled = true;
+            FitPreview(rect);
+            yield return new WaitForSeconds(0.16f);
+            _preview.enabled = false;
+            _flash = null;
         }
 
         /// <summary>Sits on the invisible full-board input image and forwards events.</summary>

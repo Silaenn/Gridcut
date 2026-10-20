@@ -78,6 +78,9 @@ namespace GridCut.Game
         public void ConfirmReset()
         {
             SaveStore.ResetProgress();
+            // a theme that is now locked falls back to the default Paper theme
+            if (SaveStore.ThemeIndex > 0 && SaveStore.UnlockedLevel < ThemeLibrary.All[SaveStore.ThemeIndex].UnlockLevel)
+                ThemeApplier.Apply(0);
             HideResetConfirm();
             RefreshLabels();
             RefreshThemeTint();
