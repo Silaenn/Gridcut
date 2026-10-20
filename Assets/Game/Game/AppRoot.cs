@@ -1,12 +1,18 @@
+using System;
+using System.Collections;
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
+using UnityEngine.InputSystem;
 
 namespace GridCut.Game
 {
     /// <summary>
-    /// Scene-owned app shell (sits on the scene root). Wires navigation between the
-    /// three screen roots which all live in the scene next to it. Initialization
-    /// (save data, level set, audio, theme) happens here once, in Awake.
+    /// Scene-owned app shell (sits on UICanvas). Wires navigation between the three
+    /// screen roots which all live in the scene. Per UI rules: screens are children
+    /// of one safe-area root; screen switches fade + slide in over 200 ms unscaled;
+    /// Escape/Back returns to the previous screen via a history stack; every button
+    /// gets pressed-scale 0.95 and disabled alpha 0.4.
     /// </summary>
     public class AppRoot : MonoBehaviour
     {
@@ -18,17 +24,21 @@ namespace GridCut.Game
         public GameplayScreen Gameplay;
         public Image Background;
 
-        IAdService _ads;
+        enum ScreenId { Home = 0, LevelSelect = 1, Gameplay = 2 }
+        readonly List<ScreenId> _history = new();
+        ScreenId _current = ScreenId.Home;
+        Coroutine _fade;
 
-        void Awake()
-        {
-            Instance = this;
-        }
+        IAdService _ads;
+        Action<Color> _bgTint;
+
+        void Awake() => Instance = this;
 
         void Start()
         {
-            // Start, bukan Awake: pastikan Awake semua screen sudah jalan sehingga
-            // subscriber tema sudah terdaftar saat ApplySaved memicu re-tint.
+            // Start, bukan Awake: pastikan Awake semua screen sudah jalan (listener,
+            // auto-wire) sebelum ApplySaved memicu re-tint lewat subscriber OnEnable.
+            AutoWireScreens();
             SaveStore.Load();
             LevelRepository.Load();
             AudioService.CreateIfMissing();
@@ -36,11 +46,63 @@ namespace GridCut.Game
 
             ThemeApplier.ApplySaved();
             if (Background != null)
-                ThemeApplier.Subscribe(ThemeApplier.Role.Background, c => Background.color = c, true);
+            {
+                _bgTint = c => Background.color = c;
+                ThemeApplier.Subscribe(ThemeApplier.Role.Background, _bgTint, true);
+            }
             Application.targetFrameRate = 60;
 
-            Gameplay.LevelFinished += OnLevelFinished;
-            OpenHome();
+            if (Gameplay != null) Gameplay.LevelFinished += OnLevelFinished;
+            BakeButtonFeel();
+            Switch(ScreenId.Home, push: false);
+        }
+
+        void OnDestroy()
+        {
+            // play mode without domain reload keeps statics across sessions; leave
+            // nothing behind that would touch destroyed objects on the next play
+            ThemeApplier.Unsubscribe(_bgTint);
+            if (Gameplay != null) Gameplay.LevelFinished -= OnLevelFinished;
+        }
+
+        /// <summary>
+        /// Fallback wiring: serialized refs written by tooling can fail to bind;
+        /// recover from the hierarchy and log exactly which refs were missing.
+        /// </summary>
+        void AutoWireScreens()
+        {
+            if (Home == null)
+            {
+                Home = GetComponentInChildren<HomeScreen>(true);
+                if (Home != null) Debug.LogWarning("[AppRoot] Home ter-wire otomatis dari hierarki");
+            }
+            if (LevelSelect == null)
+            {
+                LevelSelect = GetComponentInChildren<LevelSelectScreen>(true);
+                if (LevelSelect != null) Debug.LogWarning("[AppRoot] LevelSelect ter-wire otomatis dari hierarki");
+            }
+            if (Gameplay == null)
+            {
+                Gameplay = GetComponentInChildren<GameplayScreen>(true);
+                if (Gameplay != null) Debug.LogWarning("[AppRoot] Gameplay ter-wire otomatis dari hierarki");
+            }
+            if (Background == null)
+            {
+                var bg = GetComponentInChildren<Image>(true);
+                if (bg != null && bg.name == "Background")
+                {
+                    Background = bg;
+                    Debug.LogWarning("[AppRoot] Background ter-wire otomatis dari hierarki");
+                }
+            }
+            Debug.Log($"[AppRoot] refs \u2192 Home={Home != null} LevelSelect={LevelSelect != null} Gameplay={Gameplay != null} Background={Background != null}");
+        }
+
+        void Update()
+        {
+            var kb = Keyboard.current;
+            if (kb != null && kb.escapeKey.wasPressedThisFrame)
+                NavBack();
         }
 
         static IAdService ResolveAds()
@@ -54,32 +116,98 @@ namespace GridCut.Game
 
         // ------------------------------ navigation ------------------------------
 
-        void ShowOnly(GameObject go)
+        void Switch(ScreenId id, bool push)
         {
-            Home.gameObject.SetActive(go == Home.gameObject);
-            LevelSelect.gameObject.SetActive(go == LevelSelect.gameObject);
-            Gameplay.gameObject.SetActive(go == Gameplay.gameObject);
+            if (push) _history.Add(_current);
+            _current = id;
+            var go = id == ScreenId.Home ? Home != null ? Home.gameObject : null
+                   : id == ScreenId.LevelSelect ? LevelSelect != null ? LevelSelect.gameObject : null
+                   : Gameplay != null ? Gameplay.gameObject : null;
+            if (go == null)
+            {
+                Debug.LogError($"[AppRoot] Layar {id} tidak tersedia — referensi hilang, cek Inspector AppRoot di UICanvas");
+                return;
+            }
+            ShowOnly(go);
+
+            // per-screen refresh; Gameplay refreshes via StartLevel (needs levelId)
+            switch (id)
+            {
+                case ScreenId.Home: Home.Show(); break;
+                case ScreenId.LevelSelect: LevelSelect.Show(); break;
+            }
         }
 
-        public void OpenHome()
-        {
-            ShowOnly(Home.gameObject);
-            Home.Show();
-        }
-        public void OpenLevelSelect()
-        {
-            ShowOnly(LevelSelect.gameObject);
-            LevelSelect.Show();
-        }
+        public void OpenHome() => Switch(ScreenId.Home, push: false);
+        public void OpenLevelSelect() => Switch(ScreenId.LevelSelect, push: true);
 
         public void StartLevel(int levelId)
         {
-            ShowOnly(Gameplay.gameObject);
+            Switch(ScreenId.Gameplay, push: true);
             Gameplay.Show(levelId);
         }
 
         /// <summary>Continue button: jumps to the highest unlocked level.</summary>
         public void StartContinue() => StartLevel(SaveStore.UnlockedLevel);
+
+        /// <summary>Back one screen (Escape/Back button); lands on Home with no history.</summary>
+        public void NavBack()
+        {
+            AudioService.Play("tap");
+            if (_history.Count == 0)
+            {
+                Switch(ScreenId.Home, push: false);
+                return;
+            }
+            var prev = _history[_history.Count - 1];
+            _history.RemoveAt(_history.Count - 1);
+            Switch(prev, push: false);
+        }
+
+        void ShowOnly(GameObject go)
+        {
+            Home.gameObject.SetActive(go == Home.gameObject);
+            LevelSelect.gameObject.SetActive(go == LevelSelect.gameObject);
+            Gameplay.gameObject.SetActive(go == Gameplay.gameObject);
+            if (_fade != null) StopCoroutine(_fade);
+            _fade = StartCoroutine(FadeIn(go));
+        }
+
+        /// <summary>Fade + small slide, 200 ms at unscaled time.</summary>
+        IEnumerator FadeIn(GameObject go)
+        {
+            var cg = go.GetComponent<CanvasGroup>();
+            if (cg == null) cg = go.AddComponent<CanvasGroup>();
+            var rt = go.GetComponent<RectTransform>();
+            var basePos = rt.anchoredPosition;
+            cg.alpha = 0f;
+            rt.anchoredPosition = basePos + new Vector2(32f, 0f);
+            const float dur = 0.2f;
+            for (float t = 0f; t < dur;)
+            {
+                t += Time.unscaledDeltaTime;
+                var k = Mathf.Clamp01(t / dur);
+                cg.alpha = k;
+                rt.anchoredPosition = basePos + new Vector2(32f * (1f - k), 0f);
+                yield return null;
+            }
+            cg.alpha = 1f;
+            rt.anchoredPosition = basePos;
+        }
+
+        /// <summary>Pressed scale 0.95 (ButtonFX) + disabled alpha 0.4 on every Button.</summary>
+        void BakeButtonFeel()
+        {
+            foreach (var b in GetComponentsInChildren<Button>(true))
+            {
+                if (b.GetComponent<ButtonFX>() == null) b.gameObject.AddComponent<ButtonFX>();
+                var cb = b.colors;
+                var dis = cb.disabledColor;
+                dis.a = 0.4f;
+                cb.disabledColor = dis;
+                b.colors = cb;
+            }
+        }
 
         void OnLevelFinished(int levelId)
         {

@@ -29,9 +29,12 @@ namespace GridCut.Game
         int _levelId;
         float _elapsed;
         bool _timerRun;
+        Action<Color> _textTint, _boardTint;
+        RectTransform _winStars;
 
         void Awake()
         {
+            AutoWire();
             UndoBtn.onClick.AddListener(DoUndo);
             ResetBtn.onClick.AddListener(DoReset);
             HintBtn.onClick.AddListener(DoHint);
@@ -39,17 +42,63 @@ namespace GridCut.Game
             WinNextBtn.onClick.AddListener(NextLevel);
             WinMenuBtn.onClick.AddListener(GoLevelSelect);
 
-            ThemeApplier.Subscribe(ThemeApplier.Role.Text, c =>
+            _textTint = c =>
             {
-                LevelLabel.color = c;
-                ProgressLabel.color = c;
-                TimeLabel.color = c;
-                WinTitle.color = c;
-                WinDetail.color = c;
-            }, false);
-            ThemeApplier.Subscribe(ThemeApplier.Role.CellEmpty, _ => Board.ApplyTheme(), false);
-            ThemeApplier.Subscribe(ThemeApplier.Role.GridLine, _ => Board.ApplyTheme(), false);
-            ThemeApplier.Subscribe(ThemeApplier.Role.Rect, _ => Board.ApplyTheme(), false);
+                if (LevelLabel != null) LevelLabel.color = c;
+                if (ProgressLabel != null) ProgressLabel.color = c;
+                if (TimeLabel != null) TimeLabel.color = c;
+                if (WinTitle != null) WinTitle.color = c;
+                if (WinDetail != null) WinDetail.color = c;
+            };
+            // Rebuild() is a no-op while Session is unset, so applyImmediately is safe
+            _boardTint = _ => Board.ApplyTheme();
+
+            // win stars as sprites above the bottom-aligned detail text
+            // (LiberationSans SDF has no ★/☆ glyphs)
+            WinDetail.alignment = TextAlignmentOptions.Bottom;
+            _winStars = UiFactory.StarRow(WinDetail.transform, "WinStars");
+            _winStars.anchorMin = _winStars.anchorMax = new Vector2(0.5f, 1f);
+            _winStars.pivot = new Vector2(0.5f, 1f);
+            _winStars.sizeDelta = new Vector2(340f, 40f);
+            _winStars.anchoredPosition = new Vector2(0f, -2f);
+            _winStars.gameObject.SetActive(false);
+        }
+
+        void OnEnable()
+        {
+            // applyImmediately: re-tint from the current theme on every appearance
+            ThemeApplier.Subscribe(ThemeApplier.Role.Text, _textTint, true);
+            ThemeApplier.Subscribe(ThemeApplier.Role.CellEmpty, _boardTint, true);
+            ThemeApplier.Subscribe(ThemeApplier.Role.GridLine, _boardTint, true);
+            ThemeApplier.Subscribe(ThemeApplier.Role.Rect, _boardTint, true);
+        }
+
+        void OnDisable()
+        {
+            ThemeApplier.Unsubscribe(_textTint);
+            // _boardTint is registered on three roles; Unsubscribe clears all of them
+            ThemeApplier.Unsubscribe(_boardTint);
+        }
+
+        /// <summary>Recovers scene refs by child name when serialized wiring fails.</summary>
+        void AutoWire()
+        {
+            var t = transform;
+            if (Board == null) Board = UiFactory.Wire<BoardView>(this, null, "BoardSlot/Board");
+            if (BoardSlot == null) BoardSlot = UiFactory.Wire<RectTransform>(this, null, "BoardSlot");
+            if (Panel == null) Panel = UiFactory.Wire<RectTransform>(this, null, "Panel");
+            if (LevelLabel == null) LevelLabel = UiFactory.Wire<TMP_Text>(this, null, "Panel/LevelLabel");
+            if (ProgressLabel == null) ProgressLabel = UiFactory.Wire<TMP_Text>(this, null, "Panel/ProgressLabel");
+            if (TimeLabel == null) TimeLabel = UiFactory.Wire<TMP_Text>(this, null, "Panel/TimeLabel");
+            if (UndoBtn == null) UndoBtn = UiFactory.Wire<Button>(this, null, "Panel/UndoBtn");
+            if (ResetBtn == null) ResetBtn = UiFactory.Wire<Button>(this, null, "Panel/ResetBtn");
+            if (HintBtn == null) HintBtn = UiFactory.Wire<Button>(this, null, "Panel/HintBtn");
+            if (BackBtn == null) BackBtn = UiFactory.Wire<Button>(this, null, "Panel/BackBtn");
+            if (WinOverlay == null) WinOverlay = UiFactory.WireGo(this, null, "WinOverlay");
+            if (WinTitle == null) WinTitle = UiFactory.Wire<TMP_Text>(this, null, "WinOverlay/Card/WinTitle");
+            if (WinDetail == null) WinDetail = UiFactory.Wire<TMP_Text>(this, null, "WinOverlay/Card/WinDetail");
+            if (WinNextBtn == null) WinNextBtn = UiFactory.Wire<Button>(this, null, "WinOverlay/Card/WinNextBtn");
+            if (WinMenuBtn == null) WinMenuBtn = UiFactory.Wire<Button>(this, null, "WinOverlay/Card/WinMenuBtn");
         }
 
         // ------------------------------ flow -----------------------------------
@@ -115,20 +164,16 @@ namespace GridCut.Game
             int best = SaveStore.BestStars(_levelId);
 
             WinTitle.text = best == 3 ? "Sempurna!" : "Selesai!";
-            WinDetail.text = Stars(best)
-                + $"\nWaktu {TimeSpan.FromSeconds(_elapsed):mm\\:ss}"
+            WinDetail.text = $"Waktu {TimeSpan.FromSeconds(_elapsed):mm\\:ss}"
                 + (wasUnlocking ? "\nLevel baru terbuka!" : "");
+            _winStars.gameObject.SetActive(true);
+            UiFactory.SetStars(_winStars, best,
+                ThemeApplier.ColorOf(ThemeApplier.Role.Accent),
+                new Color(0.5f, 0.5f, 0.5f, 0.35f));
             WinNextBtn.gameObject.SetActive(_levelId < SaveStore.LevelCount);
             WinOverlay.SetActive(true);
             LevelFinished?.Invoke(_levelId);
             if (wasUnlocking) AudioService.Play("unlock");
-        }
-
-        static string Stars(int n)
-        {
-            var s = "";
-            for (int i = 0; i < 3; i++) s += i < n ? "\u2605" : "\u2606";
-            return s;
         }
 
         public void NextLevel()
@@ -155,7 +200,7 @@ namespace GridCut.Game
         public void DoBack()
         {
             _timerRun = false;
-            AppRoot.Instance.OpenHome();
+            AppRoot.Instance.NavBack();
         }
 
         void UpdateProgress() => ProgressLabel.text = $"{_session.PlacedCount}/{_session.ClueCount}";

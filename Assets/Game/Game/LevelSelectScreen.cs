@@ -1,3 +1,4 @@
+using System;
 using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
@@ -17,13 +18,45 @@ namespace GridCut.Game
 
         int _page;
         const int PerPage = 45;
+        Action<Color> _textTint;
 
         void Awake()
         {
+            AutoWire();
             PrevBtn.onClick.AddListener(Prev);
             NextBtn.onClick.AddListener(Next);
             BackBtn.onClick.AddListener(Back);
-            ThemeApplier.Subscribe(ThemeApplier.Role.Text, c => PageLabel.color = c, false);
+            _textTint = c =>
+            {
+                if (PageLabel != null) PageLabel.color = c;
+            };
+        }
+
+        void OnEnable()
+        {
+            // applyImmediately re-tints PageLabel from the current theme on appearance
+            ThemeApplier.Subscribe(ThemeApplier.Role.Text, _textTint, true);
+        }
+
+        void OnDisable() => ThemeApplier.Unsubscribe(_textTint);
+
+        /// <summary>Recovers scene refs by child name when serialized wiring fails.</summary>
+        void AutoWire()
+        {
+            var t = transform;
+            if (PageLabel == null)
+            {
+                var p = t.Find("PageLabel");
+                if (p != null) PageLabel = p.GetComponentInChildren<TMP_Text>(true);
+            }
+            if (PrevBtn == null) PrevBtn = UiFactory.Wire<Button>(this, null, "PrevBtn");
+            if (NextBtn == null) NextBtn = UiFactory.Wire<Button>(this, null, "NextBtn");
+            if (BackBtn == null) BackBtn = UiFactory.Wire<Button>(this, null, "BackBtn");
+            if (GridContent == null)
+            {
+                var g = t.Find("Grid");
+                if (g != null) GridContent = g.GetComponent<RectTransform>();
+            }
         }
 
         public void Prev() { _page = Mathf.Max(0, _page - 1); Populate(); AudioService.Play("tap"); }
@@ -34,7 +67,7 @@ namespace GridCut.Game
             Populate();
             AudioService.Play("tap");
         }
-        public void Back() => AppRoot.Instance.OpenHome();
+        public void Back() => AppRoot.Instance.NavBack();
 
         public void Show()
         {
@@ -55,20 +88,20 @@ namespace GridCut.Game
             {
                 int levelId = id;
                 bool unlocked = id <= SaveStore.UnlockedLevel;
-                var b = UiFactory.Button($"L{id}", GridContent, id.ToString(), 28, null,
+                var b = UiFactory.Button($"L{id}", GridContent, id.ToString(), 38, null,
                     Vector2.zero, unlocked
                         ? ThemeApplier.ColorOf(ThemeApplier.Role.Accent)
-                        : new Color(0.45f, 0.45f, 0.45f, 0.55f));
+                        : new Color(0.45f, 0.45f, 0.45f, 0.4f));
                 var label = b.GetComponentInChildren<TMP_Text>(true);
-                label.text = unlocked ? id.ToString() : "\u2716";
+                label.text = unlocked ? id.ToString() : "X";
 
-                var stars = UiFactory.Text(b.transform, "stars", StarString(id), 15,
-                    ThemeApplier.ColorOf(ThemeApplier.Role.Text), TMPro.TextAlignmentOptions.Center,
-                    new Vector2(90, 22));
-                var srt = stars.rectTransform;
-                srt.anchorMin = new Vector2(0, 0.02f);
-                srt.anchorMax = new Vector2(1, 0.28f);
-                srt.offsetMin = Vector2.zero; srt.offsetMax = Vector2.zero;
+                // stars as sprite images — LiberationSans SDF has no ★/☆ glyphs
+                var row = UiFactory.StarRow(b.transform, "stars");
+                row.anchorMin = new Vector2(0f, 0.02f);
+                row.anchorMax = new Vector2(1f, 0.28f);
+                row.offsetMin = Vector2.zero; row.offsetMax = Vector2.zero;
+                UiFactory.SetStars(row, SaveStore.BestStars(id),
+                    ThemeApplier.ColorOf(ThemeApplier.Role.Text), new Color(1f, 1f, 1f, 0.28f));
 
                 if (unlocked)
                     b.onClick.AddListener(() =>
@@ -77,14 +110,6 @@ namespace GridCut.Game
                         AppRoot.Instance.StartLevel(levelId);
                     });
             }
-        }
-
-        string StarString(int id)
-        {
-            int s = SaveStore.BestStars(id);
-            string r = "";
-            for (int i = 0; i < 3; i++) r += i < s ? "\u2605" : "\u2606";
-            return r;
         }
     }
 }

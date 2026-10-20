@@ -81,3 +81,23 @@ dotnet run -c Release -- calibrate # hanya rentang skor per ukuran
 5. **Hit/validasi hint tidak latih**: hint menempatkan rect sesuai `Level.Solution[ci]` (urutan clue ≡ urutan solusi pada ekspor).
 6. levels.json dipindah ke `Assets/Game/Content/Resources/` → `Resources.Load("levels")`; tooling path ikut diubah, verify masih lulus.
 7. Asset sisa URP & template 2D dihapus dari `Assets/Settings`.
+
+## Aturan umum UI (dari spec, 20 Okt 2026) — status
+
+1. ✅ CanvasScaler 1920×1080, Scale With Screen Size, Match = 1 (height) — scene `Main.unity`.
+2. ✅ SafeArea (root rect tunggal di bawah Canvas semua layar) — sudah ada.
+3. ✅ Target sentuh: tombol Home/Gameplay/LevelSelect/Win/Confirm 150 akuan; grid level sel 150×150; baris halaman 150; spacing antar tombol ≥ 24; GridCutRoot sisa bootstrap dihapus dari scene.
+4. ✅ 3 keadaan tombol: `ButtonFX` (skala 0.95 saat ditekan), disabled alpha 0.4 (dibake di AppRoot + warna terkunci ala 0.4 di Home/LevelSelect).
+5. ✅ Transisi layar: fade + geser kecil (+32 unit x), 200 ms, `Time.unscaledDeltaTime` (AppRoot.FadeIn, CanvasGroup per layar).
+6. ✅ Escape/Back desktop: `Keyboard.current` → `AppRoot.NavBack()` dengan riwayat layar (Home→Select→Game); tombol Back panel gameplay & level select memakai NavBack.
+- Legacy 1280×800 → seluruh nilai UI (offsets/sizeDelta/font/grid) diskala ×1.35 ke koordinat 1080; rebake presisi per layar diterapkan langsung ke `Main.unity` (Home 2 tombol bawah berganding, gameplay HUD grid 2×2, overlay menang kartu 700×640).
+
+## Sesi 20 Okt (sore): statik lintas-Play & wiring
+
+- **Akar MissingReference klik tema**: `EditorSettings.asset m_EnterPlayModeOptions: 1` (domain reload mati) → static `ThemeApplier._subscribers` selamat lintas sesi Play membawa closure objek sesi lama yang sudah hancur.
+- **Fix**: reset statik saat play mulai (`RuntimeInitializeOnLoadMethod(SubsystemRegistration)`, editor-only); semua langganan tema kini simetris — `Subscribe` di `OnEnable` (applyImmediately: re-tint saat layar muncul), `Unsubscribe` di `OnDisable`; `AppRoot` membereskan Background/LevelFinished di `OnDestroy`; `Subscribe` idempoten (dedupe per role+cb).
+- **Auto-wire per layar** (`UiFactory.Wire/WireGo`): ref scene yang gagal ter-bind dipulihkan dari hierarki via nama child; warning Tint kini menyebut nama tombol.
+- **Per-screen Show() dipulihkan**: `AppRoot.Switch` kini memanggil `Home.Show()`/`LevelSelect.Show()` (dulu hilang saat refactor — grid level kosong).
+- **Swatch tema nimbun**: rebake lupa isi posisi x saat override ukuran → kelima Theme0–4 jadi `pos=(0,0)` bertumpuk; dipulihkan ke x = −458/−229/0/+229/+458 (gap 24).
+- Status perbaikannya menunggu verifikasi Play user (Tahap 7 QA checklist belum dimulai).
+- **Sweep glyph font**: atlas TMP Essentials tidak memuat blok simbol — teks scene yang pakai `◀▶↺↻→✨●` diganti aman (`«»`, teks polos), bintang ★☆ jadi sprite prosedural (`UiFactory.StarSprite/StarRow/SetStars`). Pemindaian `m_text` scene: tanpa escape eksotik tersisa.

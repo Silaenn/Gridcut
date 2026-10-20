@@ -54,7 +54,7 @@ namespace GridCut.Game
 
             float availW = _slot.rect.width * 0.95f;
             float availH = _slot.rect.height * 0.95f;
-            Cell = Mathf.Max(18f, Mathf.Floor(Mathf.Min(availW / Cols, availH / Rows)));
+            Cell = Mathf.Max(24f, Mathf.Floor(Mathf.Min(availW / Cols, availH / Rows)));
             float bw = Cols * Cell, bh = Rows * Cell;
             _rt.sizeDelta = new Vector2(bw, bh);
 

@@ -17,6 +17,13 @@ namespace GridCut.Game
 
         static readonly List<(Role role, Action<Color> cb)> _subscribers = new List<(Role, Action<Color>)>();
 
+#if UNITY_EDITOR
+        // Play-mode without domain reload keeps statics across sessions; stale
+        // closures would then touch destroyed objects. Clear them on load.
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+        static void ResetSubscribers() => _subscribers.Clear();
+#endif
+
         public static Color ColorOf(Role role, int rectIndex = 0)
         {
             return role switch
@@ -33,6 +40,18 @@ namespace GridCut.Game
 
         public static void Subscribe(Role role, Action<Color> updater, bool applyImmediately) 
         {
+            // idempotent: screens re-subscribe on every enable; never stack duplicates,
+            // and an updater moved to another role drops its stale entry
+            for (int i = _subscribers.Count - 1; i >= 0; i--)
+            {
+                if (_subscribers[i].cb != updater) continue;
+                if (_subscribers[i].role == role)
+                {
+                    if (applyImmediately) updater(ColorOf(role));
+                    return;
+                }
+                _subscribers.RemoveAt(i);
+            }
             _subscribers.Add((role, updater));
             if (applyImmediately) updater(ColorOf(role));
         }
