@@ -107,3 +107,11 @@ InitTestScene*.unity*
 
 # Auto-generated cache in Assets folder
 /[Aa]ssets/[Ss]ceneDependencyCache*
+
+# GridCut tooling (dotnet console, tidak ikut build Unity)
+/Tooling/bin/
+/Tooling/obj/
+/Tooling/out/
+
+# GridCut WebGL output
+/Builds/

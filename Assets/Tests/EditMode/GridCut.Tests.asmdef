@@ -1,0 +1,15 @@
+{
+    "name": "GridCut.Tests",
+    "rootNamespace": "GridCut.Tests",
+    "references": [
+        "UnityEngine.TestRunner",
+        "UnityEditor.TestRunner",
+        "GridCut.Core"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "precompiledReferences": [
+        "nunit.framework.dll"
+    ]
+}

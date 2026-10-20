@@ -1,0 +1,6 @@
+{
+    "name": "GridCut.Core",
+    "rootNamespace": "GridCut.Core",
+    "noEngineReferences": true,
+    "autoReferenced": true
+}

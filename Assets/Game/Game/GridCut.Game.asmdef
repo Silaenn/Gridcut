@@ -1,0 +1,11 @@
+{
+    "name": "GridCut.Game",
+    "rootNamespace": "GridCut.Game",
+    "references": [
+        "GridCut.Core",
+        "UnityEngine.UI",
+        "Unity.TextMeshPro",
+        "Unity.InputSystem"
+    ],
+    "autoReferenced": true
+}
