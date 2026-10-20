@@ -14,12 +14,13 @@ namespace GridCut.EditorTools
     {
         const string MainScene = "Assets/Scenes/Main.unity";
 
-        /// <summary>One-time project prep: TMP essentials, scene UI, clean pipeline leftovers.</summary>
+        /// <summary>One-time project prep: TMP essentials + clean pipeline leftovers.
+        /// The Main scene UI is scene data now (no builder); make sure it is in the build list.</summary>
         public static void PrepareProject()
         {
             CleanUrRemnants();
             ImportTmpEssentialsOnce();
-            SceneBuilder.Build();
+            SetBuildScenes(MainScene);
             AssetDatabase.SaveAssets();
             Debug.Log("[GridCutEditor] PrepareProject OK");
         }

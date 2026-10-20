@@ -13,7 +13,7 @@ namespace GridCut.Game
     {
         [Header("Wired in scene")]
         public TMP_Text Subtitle;
-        public Button ContinueBtn, SelectBtn, SoundBtn, ResetBtn;
+        public Button ContinueBtn, SelectBtn, SoundBtn, ResetBtn, ThemesHeader;
         public Button[] ThemeSwatches;     // one per ThemeLibrary.All entry
         public GameObject ConfirmDialog;
         public Button ConfirmYes, ConfirmNo;
