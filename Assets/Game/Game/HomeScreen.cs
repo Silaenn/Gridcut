@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
@@ -16,8 +17,8 @@ namespace GridCut.Game
         [Header("Wired in scene")]
         public TMP_Text Subtitle;
         public Button ContinueBtn, SelectBtn, SoundBtn, ResetBtn, ThemesHeader;
-        public Button ThemeBtn;            // spec: third stacked menu button, opens the swatch popup
-        public Button[] ThemeSwatches;     // one per ThemeLibrary.All entry
+        public Button ThemeBtn;            // spec: third stacked menu button, opens the theme cards popup
+        public Button[] ThemeSwatches;     // kartu tematik Theme0..4 (spec: 5 kartu horizontal; diadaptasi 332×465)
         public GameObject ConfirmDialog;
         public Button ConfirmYes, ConfirmNo;
 
@@ -192,6 +193,7 @@ namespace GridCut.Game
             if (ThemePopup == null) return;
             bool show = !ThemePopup.activeSelf;
             ThemePopup.SetActive(show);
+            if (show) RefreshThemeTint();   // status/nama/kotak warna segar tiap dibuka
             AudioService.Play("tap");
         }
 
@@ -247,15 +249,31 @@ namespace GridCut.Game
         {
             var th = ThemeLibrary.All[index];
             bool unlocked = SaveStore.UnlockedLevel >= th.UnlockLevel || th.UnlockLevel <= 1;
+            var btn = index < ThemeSwatches.Length ? ThemeSwatches[index] : null;
             if (!unlocked)
             {
+                // spec: tema terkunci tidak bisa dipilih — tap hanya menggetarkan kartu
                 AudioService.Play("invalid");
+                if (btn != null) StartCoroutine(ShakeCard(btn.GetComponent<RectTransform>()));
                 return;
             }
             ThemeApplier.Apply(index);
             RefreshThemeTint();
             AudioService.Play("unlock");
             if (ThemePopup != null && ThemePopup.activeSelf) ThemePopup.SetActive(false);
+        }
+
+        // pola getar level select: ±7 px, 6 langkah, 35 ms
+        IEnumerator ShakeCard(RectTransform rt)
+        {
+            const float amp = 7f, step = 0.035f;
+            var basePos = rt != null ? rt.anchoredPosition : Vector2.zero;
+            for (int k = 0; k < 6; k++)
+            {
+                if (rt != null) rt.anchoredPosition = basePos + new Vector2((k % 2 == 0 ? -1f : 1f) * amp, 0f);
+                yield return new WaitForSecondsRealtime(step);
+            }
+            if (rt != null) rt.anchoredPosition = basePos;
         }
 
         public void Show()
@@ -267,26 +285,50 @@ namespace GridCut.Game
 
         void RefreshThemeTint()
         {
-            for (int i = 0; i < ThemeSwatches.Length; i++)
+            for (int i = 0; i < ThemeSwatches.Length && i < ThemeLibrary.All.Length; i++)
             {
-                var sw = ThemeSwatches[i];
-                if (sw == null)
+                var card = ThemeSwatches[i];
+                if (card == null)
                 {
                     Debug.LogWarning($"[HomeScreen] ThemeSwatches[{i}] belum ter-wire di scene");
                     continue;
                 }
                 var th = ThemeLibrary.All[i];
                 bool unlocked = SaveStore.UnlockedLevel >= th.UnlockLevel || th.UnlockLevel <= 1;
-                var img = sw.GetComponent<Image>();
-                var themeColor = ThemeApplier.Parse(th.Rects[0]);
-                if (img != null)
+                // 5 kotak warna pratinjau per kartu
+                for (int s = 0; s < 5; s++)
                 {
-                    themeColor.a = unlocked ? 1f : 0.4f;
-                    img.color = themeColor;
+                    var swT = card.transform.Find("Swatch" + s);
+                    var img = swT != null ? swT.GetComponent<Image>() : null;
+                    if (img != null)
+                    {
+                        var c = ThemeApplier.Parse(th.Rects[Mathf.Min(s, th.Rects.Length - 1)]);
+                        c.a = unlocked ? 1f : 0.35f;
+                        img.color = c;
+                    }
                 }
-                var lab = LabelOf(sw);
-                if (lab != null) lab.text = unlocked ? th.Name : $"{th.Name} L{th.UnlockLevel}";
-                sw.interactable = unlocked;
+                var nameT = card.transform.Find("Name");
+                var lab = nameT != null ? nameT.GetComponent<TMP_Text>() : null;
+                if (lab != null)
+                {
+                    lab.text = th.Name;
+                    var c = ThemeApplier.ColorOf(ThemeApplier.Role.Text);
+                    c.a = unlocked ? 1f : 0.4f;
+                    lab.color = c;
+                }
+                // status: Dipakai / Pilih / Buka di level N
+                var stT = card.transform.Find("Status");
+                var st = stT != null ? stT.GetComponent<TMP_Text>() : null;
+                if (st != null)
+                {
+                    st.text = SaveStore.ThemeIndex == i ? "Dipakai"
+                        : unlocked ? "Pilih" : $"Buka di level {th.UnlockLevel}";
+                    var c = ThemeApplier.ColorOf(SaveStore.ThemeIndex == i || unlocked
+                        ? ThemeApplier.Role.Accent : ThemeApplier.Role.Text);
+                    c.a = unlocked || SaveStore.ThemeIndex == i ? 1f : 0.5f;
+                    st.color = c;
+                }
+                // kartu tetap interaktif agar tap kartu terkunci memicu getar (spec)
             }
         }
     }
