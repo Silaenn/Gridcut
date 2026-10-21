@@ -150,6 +150,31 @@ namespace GridCut.Game
                 RemovePlacedAt(i);
         }
 
+        /// <summary>Memulihkan state level tersimpan (spec: supaya pemain yang
+        /// menutup tab bisa melanjutkan). TANPA event — pemanggil menyegarkan UI
+        /// setelahnya. Owner dihitung ulang dari geometri; rect tumpang tindih,
+        /// keluar batas, atau kosong ditolak (state tetap konsisten).</summary>
+        public void Restore(int hintsUsed, IReadOnlyList<RectI> rects)
+        {
+            HintCount = Math.Min(Math.Max(hintsUsed, 0), HintLimit);
+            if (rects == null) return;
+            for (int i = 0; i < rects.Count; i++)
+            {
+                var rect = rects[i];
+                if (rect.W <= 0 || rect.H <= 0 || rect.X < 0 || rect.Y < 0
+                    || rect.Right > Puzzle.Cols || rect.Bottom > Puzzle.Rows) continue;
+                bool over = false;
+                for (int p = 0; p < Placed.Count; p++)
+                    if (Placed[p].Overlaps(rect)) { over = true; break; }
+                if (over) continue;
+                int ci = UniqueAnchor(rect);
+                int owner = ci >= 0 && rect.Area == Puzzle.Clues[ci].Value ? ci : -1;
+                Placed.Add(rect);
+                PlacedOwners.Add(owner);
+                if (owner >= 0) { _placedClue[owner] = true; PlacedCount++; }
+            }
+        }
+
         /// <summary>Spec: tap pada persegi terpasang menghapusnya (sel apa pun dalam rect).</summary>
         public bool RemoveRectAt(int col, int row)
         {

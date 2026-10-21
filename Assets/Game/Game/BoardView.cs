@@ -1,9 +1,13 @@
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.EventSystems;
+using UnityEngine.InputSystem;
 using UnityEngine.UI;
 using TMPro;
 using GridCut.Core;
+// Input System punya enum TouchPhase sendiri yang senama dgn UnityEngine.TouchPhase
+// (bakal ambil CS0104 bila pakai langsung) — jadi alias di sini.
+using TouchPhase = UnityEngine.InputSystem.TouchPhase;
 
 namespace GridCut.Game
 {
@@ -37,6 +41,7 @@ namespace GridCut.Game
         Coroutine _hintCo;
 
         bool _dragging;
+        int _dragPointerId = int.MinValue;   // sentuhan aktif; sentuhan lain diabaikan (spec)
         int _dc0, _dr0, _dc1, _dr1;
         RectTransform _slot;
 
@@ -227,8 +232,10 @@ namespace GridCut.Game
         void Begin(PointerEventData e)
         {
             if (Session == null || Session.IsSolved) return;
+            if (_dragging) return;   // spec: sentuhan kedua saat drag diabaikan
             if (!TryCell(e.position, out int c, out int r)) return;
             _dragging = true;
+            _dragPointerId = e.pointerId;
             _dc0 = _dc1 = c;
             _dr0 = _dr1 = r;
             UpdatePreview();
@@ -236,8 +243,9 @@ namespace GridCut.Game
 
         public void OnDrag(PointerEventData e)
         {
-            if (!_dragging) return;
-            if (!TryCell(e.position, out int c, out int r)) return;
+            if (!_dragging || e.pointerId != _dragPointerId) return;
+            if (!TryCell(e.position, out int c, out int r)
+                && !TryCellClamped(e.position, out c, out r)) return;
             if (c != _dc1 || r != _dr1)
             {
                 _dc1 = c; _dr1 = r;
@@ -247,10 +255,13 @@ namespace GridCut.Game
 
         public void OnEndDrag(PointerEventData e)
         {
-            if (!_dragging) return;
+            if (!_dragging || e.pointerId != _dragPointerId) return;
             _dragging = false;
             if (_preview != null) _preview.enabled = false;   // tutup preview apa pun hasil jatuhnya
-            if (!TryCell(e.position, out int c, out int r)) return;
+            // spec kasus tepi: pointer di luar kisi → sel terdekat; lepas di luar
+            // tetap jatuh pada sel tepi, bukan dibatalkan
+            if (!TryCell(e.position, out int c, out int r)
+                && !TryCellClamped(e.position, out c, out r)) return;
             // spec: tap tanpa tarikan pada sel terpasang langsung menghapus rect
             // (menggantikan tombol undo); tap pada clue 1 tetap bisa menaruh 1x1
             if (c == _dc0 && r == _dr0)
@@ -271,9 +282,43 @@ namespace GridCut.Game
         /// sel itu, atau coba letakkan persegi 1x1 (clue bernilai 1).</summary>
         public void OnPointerUp(PointerEventData e)
         {
-            if (!_dragging) return;
+            if (!_dragging || e.pointerId != _dragPointerId) return;
             OnEndDrag(e);
         }
+
+        /// <summary>EventSystem bawaan Unity TIDAK punya event pointer-cancel —
+        /// deteksi manual per frame: drag "hantu" (pointer sudah lepas dibatalkan
+        /// OS di luar event) langsung dibatalkan. Polling via Input System API
+        /// (proyek memakai activeInputHandler baru; UnityEngine.Input bakal lempar).
+        /// Touch ditulis beda namespace karena UnityEngine juga punya struct Touch.</summary>
+        void Update()
+        {
+            if (!_dragging) return;
+            bool mouseDown = Mouse.current != null && Mouse.current.leftButton.isPressed;
+            Touchscreen ts = Touchscreen.current;
+            bool touchDown = false;
+            if (ts != null)
+            {
+                var phase = ts.primaryTouch.phase.ReadValue();
+                touchDown = phase == TouchPhase.Began || phase == TouchPhase.Moved
+                            || phase == TouchPhase.Stationary;
+            }
+            if (!mouseDown && !touchDown) CancelDrag();
+        }
+
+        void CancelDrag()
+        {
+            _dragging = false;
+            if (_preview != null) _preview.enabled = false;
+        }
+
+        void OnApplicationFocus(bool hasFocus)
+        {
+            // spec kasus tepi: tab kehilangan fokus saat drag → batalkan preview
+            if (!hasFocus && _dragging) CancelDrag();
+        }
+
+        void OnDisable() => CancelDrag();   // jaring pengaman: nonaktif/destroy di tengah drag
 
         bool TryCell(Vector2 screenPos, out int col, out int row)
         {
@@ -287,6 +332,21 @@ namespace GridCut.Game
             float u = local.x + halfW, v = halfH - local.y;
             col = Mathf.Clamp(Mathf.FloorToInt(u / Cell), 0, Cols - 1);
             row = Mathf.Clamp(Mathf.FloorToInt(v / Cell), 0, Rows - 1);
+            return true;
+        }
+
+        /// <summary>Spec kasus tepi: pointer di luar kisi → sel terdekat di dalam
+        /// kisi. Tanpa radius pad; jarak apa pun menempel ke tepi papan.</summary>
+        bool TryCellClamped(Vector2 screenPos, out int col, out int row)
+        {
+            col = row = 0;
+            if (!RectTransformUtility.ScreenPointToLocalPointInRectangle(_rt, screenPos, null, out var local))
+                return false;
+            float halfW = Cols * Cell * 0.5f, halfH = Rows * Cell * 0.5f;
+            float u = Mathf.Clamp(local.x + halfW, 0f, Cols * Cell - 0.01f);
+            float v = Mathf.Clamp(halfH - local.y, 0f, Rows * Cell - 0.01f);
+            col = Mathf.Min(Cols - 1, Mathf.FloorToInt(u / Cell));
+            row = Mathf.Min(Rows - 1, Mathf.FloorToInt(v / Cell));
             return true;
         }
 

@@ -148,6 +148,11 @@ namespace GridCut.Game
             _session.SolvedChanged += OnSolved;
             _session.HintUsed += OnHintUsed;
 
+            // spec: melanjutkan mainan yang tersimpan bila levelnya sama
+            if (SaveStore.TryLoadPlayState(out int pLevel, out int pHints, out var pRects)
+                && pLevel == levelId)
+                _session.Restore(pHints, pRects);
+
             Board.SetLevel(_session);
             _elapsed = 0f;
             _timerRun = true;
@@ -159,6 +164,10 @@ namespace GridCut.Game
             if (_bannerCo != null) { StopCoroutine(_bannerCo); _bannerCo = null; }   // spanduk tema ikut reset
             if (WinBanner != null) WinBanner.SetActive(false);
             ShowTutorial(level.IsTutorial);   // spec: tutorial overlay above the grid (L1–3)
+
+            // tepi: state tersimpan adalah papan SELESAI (tab ditutup sebelum
+            // overlay sempat membuka) → jalankan alur menang normal, bukan macet
+            if (_session.IsSolved) OnSolved(true);
         }
 
         // --------------------------- panel layout modes --------------------------
@@ -216,6 +225,7 @@ namespace GridCut.Game
             Board.ShowPlaced();
             UpdateProgress();
             AudioService.Play("place");
+            SavePlay();   // spec: state level dimainkan disimpan otomatis tiap perubahan
         }
 
         void OnRectRemoved(int ci, RectI r)
@@ -223,11 +233,24 @@ namespace GridCut.Game
             Board.ShowPlaced();
             UpdateProgress();
             AudioService.Play("tap");
+            SavePlay();
         }
 
         void OnInvalid() => AudioService.Play("invalid");
 
-        void OnHintUsed(int ci) => UpdateHintLabel();
+        void OnHintUsed(int ci)
+        {
+            UpdateHintLabel();
+            SavePlay();   // hint terpakai ikut tersimpan
+        }
+
+        /// <summary>Simpan Rect + hint terpakai level ini. Dilewati saat solved —
+        /// menang memanggil ClearPlayState (level tidak lagi "sedang dimainkan").</summary>
+        void SavePlay()
+        {
+            if (_session == null || _session.IsSolved) return;
+            SaveStore.SavePlayState(_levelId, _session.HintCount, _session.Placed);
+        }
 
         /// <summary>Spec: Hint button carries the remaining count; disabled at 0/3.</summary>
         void UpdateHintLabel()
@@ -252,6 +275,7 @@ namespace GridCut.Game
             int stars = _session.HintCount == 0 ? 3 : _session.HintCount <= 1 ? 2 : 1;
             bool wasUnlocking = _levelId >= SaveStore.UnlockedLevel && _levelId < SaveStore.LevelCount;
             SaveStore.RecordWin(_levelId, stars);
+            SaveStore.ClearPlayState();   // menang: tidak ada lagi mainan utk dilanjutkan
             int best = SaveStore.BestStars(_levelId);
 
             WinTitle.text = "Selesai!";   // spec: judul overlay tetap

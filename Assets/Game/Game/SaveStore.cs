@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using UnityEngine;
+using GridCut.Core;
 
 namespace GridCut.Game
 {
@@ -57,6 +58,59 @@ namespace GridCut.Game
             }
             PlayerPrefs.Save();
             return Mathf.Max(prev, stars);
+        }
+
+        // ------------- state level yang sedang dimainkan (spec: otomatis tiap
+        // perubahan, level terakhir saja, agar pemain menutup tab bisa lanjut) -----
+
+        /// <summary>Format "{level};{hints};{x,y,w,h}..." — satu kunci kecil yang
+        /// selalu tertimpa, sehingga simpanan hanya menyimpan state level terakhir.</summary>
+        public static void SavePlayState(int levelId, int hints, IReadOnlyList<RectI> rects)
+        {
+            var sb = new System.Text.StringBuilder(128);
+            sb.Append(levelId).Append(';').Append(Math.Max(0, hints));
+            for (int i = 0; i < rects.Count; i++)
+            {
+                var r = rects[i];
+                sb.Append(';').Append(r.X).Append(',').Append(r.Y)
+                    .Append(',').Append(r.W).Append(',').Append(r.H);
+            }
+            PlayerPrefs.SetString("gc.play", sb.ToString());
+            PlayerPrefs.Save();
+        }
+
+        /// <summary>Load benar bila berisi level & hint yang masuk akal (rect yang
+        /// ada kurang valid diperiksa kembali lapisan pemanggil saat dipasang).</summary>
+        public static bool TryLoadPlayState(out int levelId, out int hints, out List<RectI> rects)
+        {
+            levelId = 0; hints = 0; rects = null;
+            string s = PlayerPrefs.GetString("gc.play", "");
+            if (string.IsNullOrEmpty(s)) return false;
+            var parts = s.Split(';');
+            if (parts.Length < 2 || !int.TryParse(parts[0], out levelId)
+                || !int.TryParse(parts[1], out hints)) return false;
+            if (levelId < 1 || levelId > LevelCount || hints < 0 || hints > PuzzleSession.HintLimit)
+                return false;
+            rects = new List<RectI>();
+            for (int i = 2; i < parts.Length; i++)
+            {
+                var p = parts[i].Split(',');
+                if (p.Length != 4
+                    || !int.TryParse(p[0], out int x) || !int.TryParse(p[1], out int y)
+                    || !int.TryParse(p[2], out int w) || !int.TryParse(p[3], out int h)) continue;
+                if (w > 0 && h > 0) rects.Add(new RectI(x, y, w, h));
+            }
+            return true;
+        }
+
+        /// <summary>Level berasal dari play: tidak ada lagi state yang diselesaikan.</summary>
+        public static void ClearPlayState()
+        {
+            if (PlayerPrefs.HasKey("gc.play"))
+            {
+                PlayerPrefs.DeleteKey("gc.play");
+                PlayerPrefs.Save();
+            }
         }
 
         public static void SetSound(bool on)
