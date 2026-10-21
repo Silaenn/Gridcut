@@ -244,11 +244,18 @@ namespace GridCut.Tooling
             Console.WriteLine($"Kalibrasi selesai ({sw.Elapsed.TotalSeconds:0.0}s) -> out/calibration.txt");
         }
 
-        private static GridSize[] AllSizes() => new[]
+        /// <summary>Semua ukuran yang benar-benar dipakai LevelPlan (urut kemunculan) —
+        /// tidak ada lagi daftar manual yang bisa mancurus.</summary>
+        private static GridSize[] AllSizes()
         {
-            new GridSize(4, 4), new GridSize(5, 4), new GridSize(5, 5), new GridSize(6, 5),
-            new GridSize(8, 6), new GridSize(10, 7), new GridSize(12, 8), new GridSize(14, 8),
-        };
+            var list = new List<GridSize>();
+            for (int l = 1; l <= LevelPlan.TotalLevels; l++)
+            {
+                var s = LevelPlan.SizeForLevel(l);
+                if (!list.Contains(s)) list.Add(s);
+            }
+            return list.ToArray();
+        }
 
         private static int RunLevels()
         {

@@ -421,7 +421,10 @@ namespace GridCut.Game
         public void DoHint()
         {
             if (_session == null || _session.IsSolved || _session.HintsLeft <= 0) return;
-            _session.Hint();
+            if (!_session.TryGetHintTarget(out int ci, out _)) return;
+            // spec hint bertingkat: kedipkan angka dulu, baru rect solusi ditempatkan
+            var session = _session;   // pengaman bila level berganti saat animasi jalan
+            Board.HintPulse(ci, () => session.ApplyHint(ci));
         }
 
         public void DoBack()

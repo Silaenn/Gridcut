@@ -32,6 +32,8 @@ namespace GridCut.Game
         RectTransform _rt;
         Image _preview;
         List<Image> _rectFill = new List<Image>(64);          // per clue fill image
+        List<TMP_Text> _clueText = new List<TMP_Text>(64);    // per clue label (pulse hint)
+        Coroutine _hintCo;
 
         bool _dragging;
         int _dc0, _dr0, _dc1, _dr1;
@@ -57,8 +59,11 @@ namespace GridCut.Game
         {
             if (_slot == null) _slot = transform.parent as RectTransform;
             if (Session == null) return;
+            StopAllCoroutines();      // mematikan pulse hint dari level sebelumnya
+            _hintCo = null;
             ClearChildren(_rt);
             _rectFill.Clear();
+            _clueText.Clear();
 
             Cell = Mathf.Max(24f, Mathf.Floor(EstimateCell(_slot.rect.width, _slot.rect.height, Cols, Rows)));
             float bw = Cols * Cell, bh = Rows * Cell;
@@ -97,6 +102,7 @@ namespace GridCut.Game
                 rt.anchorMin = rt.anchorMax = new Vector2(0.5f, 0.5f);
                 rt.sizeDelta = new Vector2(Cell - 4f, Cell - 4f);
                 rt.anchoredPosition = CellCenter(clue.Col, clue.Row);
+                _clueText.Add(t);
             }
 
             // preview rect (on top of fills, below nothing yet)
@@ -272,6 +278,28 @@ namespace GridCut.Game
             _preview.rectTransform.anchoredPosition = new Vector2(
                 -(Cols * Cell) / 2f + (rect.X + rect.W * 0.5f) * Cell,
                  (Rows * Cell) / 2f - (rect.Y + rect.H * 0.5f) * Cell);
+        }
+
+        /// <summary>Spec hint bertingkat tahap 1: kedipkan angka clue (warna aksen)
+        /// sebanyak 2×, kemudian `apply` menempatkan rect solusinya (tahap 2).</summary>
+        public void HintPulse(int clueIndex, System.Action apply)
+        {
+            if (_hintCo != null) StopCoroutine(_hintCo);
+            _hintCo = StartCoroutine(HintPulseCo(clueIndex, apply));
+        }
+
+        System.Collections.IEnumerator HintPulseCo(int clueIndex, System.Action apply)
+        {
+            var label = clueIndex < _clueText.Count ? _clueText[clueIndex] : null;
+            var accent = ThemeApplier.ColorOf(ThemeApplier.Role.Accent);
+            var normal = label != null ? label.color : accent;
+            for (int i = 0; i < 4; i++)   // on-off-on-off = 2 kedip ≈ 0.88 s
+            {
+                if (label != null) label.color = i % 2 == 0 ? accent : normal;
+                yield return new WaitForSecondsRealtime(0.22f);
+            }
+            _hintCo = null;
+            apply?.Invoke();
         }
 
         /// <summary>Sits on the invisible full-board input image and forwards events.</summary>

@@ -190,22 +190,50 @@ namespace GridCut.Game
             RectRemoved?.Invoke(ci, r);
         }
 
-        /// <summary>Auto-places the next unsolved clue from the stored solution; returns its rect.</summary>
-        public RectI Hint()
+        /// <summary>
+        /// Spec hint: target = clue pertama yang belum tertutup rect SOLUSINYA —
+        /// belum ditempatkan ATAU ditempatkan salah. false bila tak ada lagi.
+        /// </summary>
+        public bool TryGetHintTarget(out int clueIndex, out RectI rect)
         {
-            if (IsSolved || HintCount >= HintLimit) return default;
-            // solution order matches clue order in the export
-            for (int ci = 0; ci < ClueCount; ci++)
+            clueIndex = -1;
+            rect = default;
+            if (IsSolved || HintCount >= HintLimit) return false;
+            for (int c = 0; c < ClueCount; c++)
             {
-                if (_placedClue[ci]) continue;
-                var rect = Level.Solution[ci];
-                HintCount++;
-                Place(rect);
-                if (_placedClue[ci]) HintUsed?.Invoke(ci);
-                return rect;
+                if (_placedClue[c])
+                {
+                    var placed = RectOfClue(c);
+                    if (placed.HasValue && SameAs(placed.Value, Level.Solution[c])) continue;
+                }
+                clueIndex = c;
+                rect = Level.Solution[c];
+                return true;
             }
-            return default;
+            return false;
         }
+
+        /// <summary>Menempatkan solusi clue `clueIndex` (rect miliknya yang salah ikut
+        /// terhapus via penimpaan). Dipanggil BoardView SETELAH animasi sorot sesuai
+        /// spec hint bertingkat.</summary>
+        public void ApplyHint(int clueIndex)
+        {
+            if (IsSolved || HintCount >= HintLimit) return;
+            if (clueIndex < 0 || clueIndex >= ClueCount) return;
+            HintCount++;
+            Place(Level.Solution[clueIndex]);
+            if (_placedClue[clueIndex]) HintUsed?.Invoke(clueIndex);
+        }
+
+        RectI? RectOfClue(int ci)
+        {
+            var clue = Puzzle.Clues[ci];
+            foreach (var r in Placed)
+                if (r.Contains(clue.Col, clue.Row)) return r;
+            return null;
+        }
+
+        static bool SameAs(in RectI a, in RectI b) => a.X == b.X && a.Y == b.Y && a.W == b.W && a.H == b.H;
 
         /// <summary>Percentage of clues placed, for the progress readout.</summary>
         public float Progress => ClueCount == 0 ? 1f : PlacedCount / (float)ClueCount;

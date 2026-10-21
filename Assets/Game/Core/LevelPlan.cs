@@ -11,9 +11,7 @@ namespace GridCut.Core
 
         public static GridSize SizeForLevel(int level)
         {
-            if (level <= 3) return new GridSize(4, 4);      // tutorial
-            if (level <= 7) return new GridSize(5, 4);      // warm-up: 5x4
-            if (level <= 12) return new GridSize(5, 5);     // warm-up: 5x5
+            if (level <= 12) return new GridSize(5, 5);     // spec bag.4: mulai 5x5
             if (level <= 30) return new GridSize(6, 5);
             if (level <= 55) return new GridSize(8, 6);
             if (level <= 85) return new GridSize(10, 7);
@@ -27,7 +25,7 @@ namespace GridCut.Core
 
         /// <summary>First level that starts a new size band.</summary>
         public static int[] FirstLevelOfEachBand =
-            { 1, 4, 8, 13, 31, 56, 86, 121 };
+            { 1, 13, 31, 56, 86, 121 };
 
         public static bool IsFirstOfNewSize(int level)
         {

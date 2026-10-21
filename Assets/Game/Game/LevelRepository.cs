@@ -32,7 +32,11 @@ namespace GridCut.Game
 
         public static int Count => All != null ? All.Count : 0;
 
-        /// <summary>Localized difficulty 1..10, straight from the calibrated export.</summary>
-        public static string ScoreLabel(LevelData l) => l.Score <= 0 ? "?" : l.Score.ToString("0.#");
+        /// <summary>Localized difficulty 1..10: the level's TARGET score on the spec
+        /// difficulty curve (linear rise, breathers −30%, dip at each new board size).
+        /// Raw solver score stays in LevelData.Score for the export report — solver
+        /// raws floor-mass on small boards and would show a flat "1" for the whole
+        /// early game.</summary>
+        public static string ScoreLabel(LevelData l) => LevelPlan.TargetScore(l.Id).ToString("0.#");
     }
 }
