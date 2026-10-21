@@ -32,7 +32,9 @@ namespace GridCut.Game
 
         public int ClueCount => Puzzle.ClueCount;
         public int PlacedCount { get; private set; }
+        public const int HintLimit = 3;      // spec: Hint button shows remaining (e.g. 2/3)
         public int HintCount { get; private set; }
+        public int HintsLeft => HintLimit - HintCount;
         public bool IsSolved => PlacedCount == ClueCount;
         public bool CanUndo => _undoStack.Count > 0;
 
@@ -150,7 +152,7 @@ namespace GridCut.Game
         /// <summary>Auto-places the next unsolved clue from the stored solution; returns its rect.</summary>
         public RectI Hint()
         {
-            if (IsSolved) return default;
+            if (IsSolved || HintCount >= HintLimit) return default;
             // solution order matches clue order in the export
             for (int ci = 0; ci < ClueCount; ci++)
             {

@@ -18,7 +18,7 @@ namespace GridCut.Game
         public RectTransform BoardSlot;      // stretches to the board area
         public RectTransform Panel;          // 360-unit side panel / bottom strip
         public TMP_Text LevelLabel, ProgressLabel, TimeLabel;
-        public Button UndoBtn, ResetBtn, HintBtn, BackBtn;
+        public Button UndoBtn, ResetBtn, HintBtn, BackBtn, MuteBtn;
         public GameObject WinOverlay;
         public TMP_Text WinTitle, WinDetail;
         public Button WinNextBtn, WinMenuBtn;
@@ -31,6 +31,12 @@ namespace GridCut.Game
         bool _timerRun;
         Action<Color> _textTint, _boardTint;
         RectTransform _winStars;
+        GameObject _tutorial;
+        bool _panelCompact;
+
+        // spec panel widths: 360/220 reference ×1.35 (app-wide rebake)
+        const float FullWidth = 486f;
+        const float CompactWidth = 297f;
 
         void Awake()
         {
@@ -39,6 +45,7 @@ namespace GridCut.Game
             ResetBtn.onClick.AddListener(DoReset);
             HintBtn.onClick.AddListener(DoHint);
             BackBtn.onClick.AddListener(DoBack);
+            if (MuteBtn != null) MuteBtn.onClick.AddListener(ToggleMute);
             WinNextBtn.onClick.AddListener(NextLevel);
             WinMenuBtn.onClick.AddListener(GoLevelSelect);
 
@@ -94,6 +101,7 @@ namespace GridCut.Game
             if (ResetBtn == null) ResetBtn = UiFactory.Wire<Button>(this, null, "Panel/ResetBtn");
             if (HintBtn == null) HintBtn = UiFactory.Wire<Button>(this, null, "Panel/HintBtn");
             if (BackBtn == null) BackBtn = UiFactory.Wire<Button>(this, null, "Panel/BackBtn");
+            if (MuteBtn == null) MuteBtn = UiFactory.Wire<Button>(this, null, "Panel/MuteBtn");
             if (WinOverlay == null) WinOverlay = UiFactory.WireGo(this, null, "WinOverlay");
             if (WinTitle == null) WinTitle = UiFactory.Wire<TMP_Text>(this, null, "WinOverlay/Card/WinTitle");
             if (WinDetail == null) WinDetail = UiFactory.Wire<TMP_Text>(this, null, "WinOverlay/Card/WinDetail");
@@ -109,18 +117,21 @@ namespace GridCut.Game
             var level = LevelRepository.Get(levelId);
             if (level == null) return;
 
+            ConfigurePanelMode(level.Cols, level.Rows);   // compact panel before the board sizes
             if (_session != null)
             {
                 _session.RectPlaced -= OnRectPlaced;
                 _session.Invalid -= OnInvalid;
                 _session.RectRemoved -= OnRectRemoved;
                 _session.SolvedChanged -= OnSolved;
+                _session.HintUsed -= OnHintUsed;
             }
             _session = PuzzleSession.Make(level);
             _session.RectPlaced += OnRectPlaced;
             _session.Invalid += OnInvalid;
             _session.RectRemoved += OnRectRemoved;
             _session.SolvedChanged += OnSolved;
+            _session.HintUsed += OnHintUsed;
 
             Board.SetLevel(_session);
             _elapsed = 0f;
@@ -128,7 +139,59 @@ namespace GridCut.Game
             LevelLabel.text = $"Level {_levelId}" + (level.IsTutorial ? " \u00b7 Latihan" : "");
             TimeLabel.text = "0:00";
             UpdateProgress();
+            UpdateHintLabel();
             WinOverlay.SetActive(false);
+            ShowTutorial(level.IsTutorial);   // spec: tutorial overlay above the grid (L1–3)
+        }
+
+        // --------------------------- panel layout modes --------------------------
+
+        /// <summary>
+        /// Spec: if the FULL panel would render a cell under 32 real px, switch to the
+        /// compact panel (icons only) before shrinking cells. Runs per level, before
+        /// the board builds.
+        /// </summary>
+        void ConfigurePanelMode(int cols, int rows)
+        {
+            if (BoardSlot == null || Panel == null || cols <= 0 || rows <= 0) return;
+            var s = BoardSlot.rect;
+            float widen = FullWidth - CompactWidth;                    // slot gains this in compact
+            float slotWFull = _panelCompact ? s.width - widen : s.width;
+            float slotWComp = _panelCompact ? s.width : s.width + widen;
+            float scale = Screen.height / 1080f;                       // canvas units → real px (match-height)
+            float realFull = BoardView.EstimateCell(slotWFull, s.height, cols, rows) * scale;
+            bool compact = realFull < 32f;
+            if (_panelCompact == compact) return;
+            _panelCompact = compact;
+            Panel.sizeDelta = new Vector2(compact ? CompactWidth : FullWidth, 0f);
+            BoardSlot.sizeDelta = new Vector2(-(compact ? CompactWidth : FullWidth), 0f);
+            if (LevelLabel != null) LevelLabel.gameObject.SetActive(!compact);
+            if (ProgressLabel != null) ProgressLabel.gameObject.SetActive(!compact);
+            if (TimeLabel != null) TimeLabel.gameObject.SetActive(!compact);
+            foreach (var b in new[] { BackBtn, HintBtn, UndoBtn, ResetBtn, MuteBtn })
+            {
+                var t = b != null ? b.GetComponentInChildren<TMP_Text>(true) : null;
+                if (t != null) t.fontSize = compact ? 26f : 38f;
+            }
+            UpdateHintLabel();
+            RefreshMuteLabel();
+        }
+
+        public void ToggleMute()
+        {
+            SaveStore.SetSound(!SaveStore.SoundOn);
+            RefreshMuteLabel();
+            AudioService.Play("tap");
+        }
+
+        void RefreshMuteLabel()
+        {
+            if (MuteBtn == null) return;
+            var t = MuteBtn.GetComponentInChildren<TMP_Text>(true);
+            if (t == null) return;
+            t.text = _panelCompact
+                ? (SaveStore.SoundOn ? "Nyala" : "Mati")
+                : (SaveStore.SoundOn ? "Suara: nyala" : "Suara: mati");
         }
 
         void OnRectPlaced(int ci, RectI r)
@@ -146,6 +209,17 @@ namespace GridCut.Game
         }
 
         void OnInvalid() => AudioService.Play("invalid");
+
+        void OnHintUsed(int ci) => UpdateHintLabel();
+
+        /// <summary>Spec: Hint button carries the remaining count; disabled at 0/3.</summary>
+        void UpdateHintLabel()
+        {
+            if (HintBtn == null || _session == null) return;
+            var t = HintBtn.GetComponentInChildren<TMP_Text>(true);
+            if (t != null) t.text = $"Hint {_session.HintsLeft}/{PuzzleSession.HintLimit}";
+            HintBtn.interactable = _session.HintsLeft > 0;
+        }
 
         void OnSolved(bool solved)
         {
@@ -182,6 +256,81 @@ namespace GridCut.Game
             Show(Mathf.Min(_levelId + 1, SaveStore.LevelCount));
         }
 
+        // ------------------------------ tutorial --------------------------------
+
+        /// <summary>Spec: tutorial overlay (levels 1–3) floats above the grid, not the panel.</summary>
+        void ShowTutorial(bool tutorial)
+        {
+            if (!tutorial)
+            {
+                if (_tutorial != null) _tutorial.SetActive(false);
+                return;
+            }
+            if (_tutorial == null) _tutorial = BuildTutorial();
+            _tutorial.transform.Find("Card").Find("Body").GetComponent<TMP_Text>().text = TutorialText(_levelId);
+            _tutorial.SetActive(true);
+        }
+
+        static string TutorialText(int levelId) => levelId switch
+        {
+            1 => "Tarik di atas kisi untuk meletakkan persegi panjang.\n\n"
+               + "Angka di sel adalah luas persegi yang harus menutupinya.\n\n"
+               + "Setiap angka hanya boleh ditutup oleh satu persegi.",
+            2 => "Persegi tidak boleh menindih persegi lain —\nsel yang dilalui harus masih kosong.\n\n"
+               + "Tutup seluruh papan tanpa sisa.\n\n"
+               + "Salah menarik? Tekan Undo lalu tarik ulang.",
+            _ => "Buntu? Reset mengosongkan papan.\n\n"
+               + "Hint meletakkan satu persegi yang benar,\ntetapi setiap Hint memangkas bintang.\n\n"
+               + "Setelah level ini, kisi kian besar dan kian menantang.",
+        };
+
+        GameObject BuildTutorial()
+        {
+            var rootGo = new GameObject("Tutorial", typeof(RectTransform), typeof(CanvasGroup));
+            var root = (RectTransform)rootGo.transform;
+            root.SetParent(BoardSlot, false);
+            root.anchorMin = Vector2.zero; root.anchorMax = Vector2.one;
+            root.offsetMin = Vector2.zero; root.offsetMax = Vector2.zero;
+
+            UiFactory.Panel(root, "Dim", new Color(0f, 0f, 0f, 0.45f), true);   // blocks board input
+
+            var cardGo = new GameObject("Card", typeof(RectTransform), typeof(Image));
+            var card = (RectTransform)cardGo.transform;
+            card.SetParent(root, false);
+            card.anchorMin = card.anchorMax = card.pivot = new Vector2(0.5f, 0.5f);
+            card.sizeDelta = new Vector2(640f, 640f);
+            cardGo.GetComponent<Image>().color = ThemeApplier.ColorOf(ThemeApplier.Role.CellEmpty);
+
+            var title = UiFactory.Text(card, "Title", "Cara Bermain", 46,
+                ThemeApplier.ColorOf(ThemeApplier.Role.Text), TMPro.TextAlignmentOptions.Center);
+            var trt = title.rectTransform;
+            trt.anchorMin = trt.anchorMax = trt.pivot = new Vector2(0.5f, 1f);
+            trt.sizeDelta = new Vector2(560f, 64f);
+            trt.anchoredPosition = new Vector2(0f, -40f);
+
+            var body = UiFactory.Text(card, "Body", "", 34,
+                ThemeApplier.ColorOf(ThemeApplier.Role.Text), TMPro.TextAlignmentOptions.TopLeft,
+                new Vector2(520f, 320f));
+            body.enableWordWrapping = true;
+            var brt = body.rectTransform;
+            brt.anchorMin = brt.anchorMax = brt.pivot = new Vector2(0.5f, 1f);
+            brt.anchoredPosition = new Vector2(0f, -120f);
+
+            var btn = UiFactory.Button("MengertiBtn", card, "Mengerti", 40, () =>
+                {
+                    _tutorial.SetActive(false);
+                    AudioService.Play("tap");
+                },
+                new Vector2(320f, 130f), ThemeApplier.ColorOf(ThemeApplier.Role.Accent));
+            var art = btn.GetComponent<RectTransform>();
+            art.anchorMin = art.anchorMax = new Vector2(0.5f, 0f);
+            art.pivot = new Vector2(0.5f, 0f);
+            art.anchoredPosition = new Vector2(0f, 36f);
+
+            rootGo.SetActive(false);
+            return rootGo;
+        }
+
         public void GoLevelSelect()
         {
             WinOverlay.SetActive(false);
@@ -193,7 +342,7 @@ namespace GridCut.Game
 
         public void DoHint()
         {
-            if (_session == null || _session.IsSolved) return;
+            if (_session == null || _session.IsSolved || _session.HintsLeft <= 0) return;
             _session.Hint();
         }
 

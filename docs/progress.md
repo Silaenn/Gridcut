@@ -101,3 +101,11 @@ dotnet run -c Release -- calibrate # hanya rentang skor per ukuran
 - **Swatch tema nimbun**: rebake lupa isi posisi x saat override ukuran → kelima Theme0–4 jadi `pos=(0,0)` bertumpuk; dipulihkan ke x = −458/−229/0/+229/+458 (gap 24).
 - Status perbaikannya menunggu verifikasi Play user (Tahap 7 QA checklist belum dimulai).
 - **Sweep glyph font**: atlas TMP Essentials tidak memuat blok simbol — teks scene yang pakai `◀▶↺↻→✨●` diganti aman (`«»`, teks polos), bintang ★☆ jadi sprite prosedural (`UiFactory.StarSprite/StarRow/SetStars`). Pemindaian `m_text` scene: tanpa escape eksotik tersisa.
+
+## Gameplay §spec re-audit (21 Okt) — pasangan spec vs implementasi
+
+- ✅ sudah: tanpa bar atas; grid tengah area; floor(min(area/cols, area/rows)); garis 2 acuan; tutorial L1–3 (baru).
+- ✅ difix: cap sel 150 acuan (Val ×1.35 → 202.5), margin area 48 acuan (64.8), font clue 0,5×sel clamp 36–72 (49–97), sisa hint `Hint N/3` (PuzzleSession.HintLimit), overlay tutorial di atas grid.
+- ✅ panel kolom vertikal (keputusan user: lebar 486 = ×1.35; urutan Menu « → Level+Progress/Waktu → Hint → Undo → Reset → Mute bawah): tombol 438×160 (≥150 sentuh), gap 24, pad 24 — total pas 1080.
+- ✅ mode ringkas: sel nyata < 32 px (hitung `Cell × Screen.height/1080`) → panel 297, label status tersembunyi, font tombol 26 (dipilih per level sebelum board dibangun; BoardView.EstimateCell = sumber tunggal).
+- Panel scene dibake ulang via YAML (GridLayoutGroup HUD 2×2 ternyata tidak pernah ada — anak panel diposisikan manual; MuteBtn klon UndoBtn id 12011–12019; nama & rantai refs terverifikasi unik).

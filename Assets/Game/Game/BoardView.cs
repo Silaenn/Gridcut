@@ -20,6 +20,15 @@ namespace GridCut.Game
         public int Cols { get; private set; }
         public int Rows { get; private set; }
 
+        // spec sizes use 1280-wide reference units; ×1.35 matches the app-wide rebake
+        public const float Ref = 1.35f;
+        const float MaxCell = 150f * Ref;   // spec: cells never exceed 150 reference
+        const float Margin = 48f * Ref;     // spec: 48 reference inset around the grid area
+
+        /// <summary>Single source for cell sizing (spec margins + cap); shared with the compact-panel check.</summary>
+        public static float EstimateCell(float slotW, float slotH, int cols, int rows) =>
+            Mathf.Min(MaxCell, Mathf.Min((slotW - Margin * 2f) / cols, (slotH - Margin * 2f) / rows));
+
         RectTransform _rt;
         Image _preview;
         List<Image> _rectFill = new List<Image>(64);          // per clue fill image
@@ -52,9 +61,7 @@ namespace GridCut.Game
             ClearChildren(_rt);
             _rectFill.Clear();
 
-            float availW = _slot.rect.width * 0.95f;
-            float availH = _slot.rect.height * 0.95f;
-            Cell = Mathf.Max(24f, Mathf.Floor(Mathf.Min(availW / Cols, availH / Rows)));
+            Cell = Mathf.Max(24f, Mathf.Floor(EstimateCell(_slot.rect.width, _slot.rect.height, Cols, Rows)));
             float bw = Cols * Cell, bh = Rows * Cell;
             _rt.sizeDelta = new Vector2(bw, bh);
 
@@ -75,9 +82,9 @@ namespace GridCut.Game
             // grid lines
             var lineColor = ThemeApplier.ColorOf(ThemeApplier.Role.GridLine);
             for (int c = 0; c <= Cols; c++)
-                Line($"v{c}", lineColor, new Vector2(2f, bh), new Vector2(-bw / 2f + c * Cell, 0f));
+                Line($"v{c}", lineColor, new Vector2(2f * Ref, bh), new Vector2(-bw / 2f + c * Cell, 0f));
             for (int r = 0; r <= Rows; r++)
-                Line($"h{r}", lineColor, new Vector2(bw, 2f), new Vector2(0f, -bh / 2f + r * Cell));
+                Line($"h{r}", lineColor, new Vector2(bw, 2f * Ref), new Vector2(0f, -bh / 2f + r * Cell));
 
             // clue labels
             var tc = ThemeApplier.ColorOf(ThemeApplier.Role.Text);
@@ -85,7 +92,8 @@ namespace GridCut.Game
             {
                 var clue = Session.Puzzle.Clues[ci];
                 var t = UiFactory.Text(_rt, $"clue{ci}", clue.Value.ToString(),
-                    Mathf.RoundToInt(Cell * 0.42f), tc, TMPro.TextAlignmentOptions.Center);
+                    Mathf.Clamp(Mathf.RoundToInt(Cell * 0.5f), Mathf.RoundToInt(36f * Ref), Mathf.RoundToInt(72f * Ref)),
+                    tc, TMPro.TextAlignmentOptions.Center);
                 var rt = t.rectTransform;
                 rt.anchorMin = rt.anchorMax = new Vector2(0.5f, 0.5f);
                 rt.sizeDelta = new Vector2(Cell - 4f, Cell - 4f);
