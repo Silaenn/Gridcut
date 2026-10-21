@@ -178,38 +178,44 @@ namespace GridCut.Game
         }
 
         /// <summary>
-        /// Spec hint: target = clue pertama yang belum tertutup rect SOLUSINYA —
-        /// belum ditempatkan ATAU ditempatkan salah. false bila tak ada lagi.
+        /// Tahap 1 hint (spec): pilih target DAN langsung menghitung hint terpakai
+        /// (dihitung saat tahap 1 dipanggil, bukan saat rect ditempatkan). Pemilihan:
+        /// utamakan clue yang belum punya rect miliknya; bila semua clue sudah
+        /// ber-rect, target = rect pertama yang bukan bagian solusi.
+        /// false bila sudah menang / hint habis / tak ada target.
         /// </summary>
         public bool TryGetHintTarget(out int clueIndex, out RectI rect)
         {
             clueIndex = -1;
             rect = default;
             if (IsSolved || HintCount >= HintLimit) return false;
-            for (int c = 0; c < ClueCount; c++)
-            {
-                if (_placedClue[c])
+
+            int target = -1;
+            for (int c = 0; c < ClueCount && target == -1; c++)
+                if (!_placedClue[c]) target = c;          // rect-nya belum ada (utama)
+            if (target == -1)
+                for (int c = 0; c < ClueCount; c++)      // semua ber-rect: cari non-solusi
                 {
                     var placed = RectOfClue(c);
-                    if (placed.HasValue && SameAs(placed.Value, Level.Solution[c])) continue;
+                    if (placed.HasValue && !SameAs(placed.Value, Level.Solution[c])) { target = c; break; }
                 }
-                clueIndex = c;
-                rect = Level.Solution[c];
-                return true;
-            }
-            return false;
+            if (target == -1) return false;               // semuanya sudah menuruti solusi
+
+            clueIndex = target;
+            rect = Level.Solution[target];
+            HintCount++;                                  // spec: terhitung pada tahap 1
+            HintUsed?.Invoke(target);
+            return true;
         }
 
-        /// <summary>Menempatkan solusi clue `clueIndex` (rect miliknya yang salah ikut
-        /// terhapus via penimpaan). Dipanggil BoardView SETELAH animasi sorot sesuai
-        /// spec hint bertingkat.</summary>
+        /// <summary>Tahap 2 hint: menempatkan rect solusi `clueIndex` setelah
+        /// sorotan (rect miliknya yang salah ikut tersapu via penimpaan). Hitungan
+        /// TIDAK bertambah di sini — sudah dihitung pada tahap 1.</summary>
         public void ApplyHint(int clueIndex)
         {
-            if (IsSolved || HintCount >= HintLimit) return;
+            if (IsSolved) return;
             if (clueIndex < 0 || clueIndex >= ClueCount) return;
-            HintCount++;
             Place(Level.Solution[clueIndex]);
-            if (_placedClue[clueIndex]) HintUsed?.Invoke(clueIndex);
         }
 
         RectI? RectOfClue(int ci)

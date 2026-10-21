@@ -317,7 +317,9 @@ namespace GridCut.Game
         }
 
         /// <summary>Spec hint bertingkat tahap 1: kedipkan angka clue (warna aksen)
-        /// sebanyak 2×, kemudian `apply` menempatkan rect solusinya (tahap 2).</summary>
+        /// 2× — termasuk rect miliknya bila ada (posisi salah) — kemudian `apply`
+        /// menempatkan rect solusinya (tahap 2). Hitungan hint sudah dibukukan pada
+        /// pemanggilan tahap 1 (TryGetHintTarget).</summary>
         public void HintPulse(int clueIndex, System.Action apply)
         {
             if (_hintCo != null) StopCoroutine(_hintCo);
@@ -328,12 +330,25 @@ namespace GridCut.Game
         {
             var label = clueIndex < _clueText.Count ? _clueText[clueIndex] : null;
             var accent = ThemeApplier.ColorOf(ThemeApplier.Role.Accent);
-            var normal = label != null ? label.color : accent;
+            var labelText = label != null ? label.color : accent;
+            // spec: bila target punya rect (posisi salah), rect itu ikut disorot
+            Image fillImg = clueIndex < _rectFill.Count
+                            && _rectFill[clueIndex] != null && _rectFill[clueIndex].enabled
+                ? _rectFill[clueIndex] : null;
+            var fillNormal = fillImg != null ? fillImg.color : Color.clear;
             for (int i = 0; i < 4; i++)   // on-off-on-off = 2 kedip ≈ 0.88 s
             {
-                if (label != null) label.color = i % 2 == 0 ? accent : normal;
+                bool hot = i % 2 == 0;
+                if (label != null) label.color = hot ? accent : labelText;
+                if (fillImg != null)
+                {
+                    var c = hot ? ThemeApplier.ColorOf(ThemeApplier.Role.Accent) : fillNormal;
+                    c.a = 0.92f;
+                    fillImg.color = c;
+                }
                 yield return new WaitForSecondsRealtime(0.22f);
             }
+            if (fillImg != null) fillImg.color = fillNormal;
             _hintCo = null;
             apply?.Invoke();
         }
