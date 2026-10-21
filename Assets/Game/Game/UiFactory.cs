@@ -101,6 +101,15 @@ namespace GridCut.Game
 
         static Sprite _starFull, _starEmpty;
 
+        /// <summary>Star sprites are session-bound objects; without domain reload the cache
+        /// must be cleared between plays or the second session would keep destroyed refs.</summary>
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+        static void ResetSpriteCaches()
+        {
+            _starFull = null;
+            _starEmpty = null;
+        }
+
         public static Sprite StarSprite(bool full)
         {
             if (full && _starFull != null) return _starFull;

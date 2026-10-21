@@ -8,19 +8,27 @@ namespace GridCut.Game
 {
     /// <summary>
     /// Main menu screen (scene component; hierarchy and references are wired in the
-    /// scene). Continue/level pick/sound/reset; theme swatch row selects one of the
-    /// five themes, locked until the unlock level is reached.
+    /// scene). Three stacked menu buttons per spec; Tema opens the swatch popup,
+    /// the bottom-right icon pair covers mute and Pengaturan (sound + reset).
     /// </summary>
     public class HomeScreen : MonoBehaviour
     {
         [Header("Wired in scene")]
         public TMP_Text Subtitle;
         public Button ContinueBtn, SelectBtn, SoundBtn, ResetBtn, ThemesHeader;
+        public Button ThemeBtn;            // spec: third stacked menu button, opens the swatch popup
         public Button[] ThemeSwatches;     // one per ThemeLibrary.All entry
         public GameObject ConfirmDialog;
         public Button ConfirmYes, ConfirmNo;
 
-        Action<Color> _textTint, _accentTint;
+        [Header("Scene-baked popups (dibake di Main.unity, bukan runtime)")]
+        public GameObject ThemePopup;      // Dim + Card + 5 swatch + Tutup
+        public GameObject SettingsPopup;   // Dim + Card + Suara / Reset Progres / Tutup
+        public Button ThemeCloseBtn, SettingsSoundBtn, SettingsResetBtn, SettingsCloseBtn;
+        public Image MuteIcon, MuteIconOff, GearIcon, ThemeCard, SettingsCard;   // sprite ikon dari Assets/Game/UI/Icons
+        public TMP_Text ThemeTitle, SettingsTitle;
+
+        Action<Color> _textTint, _accentTint, _popupTint;
 
         void Awake()
         {
@@ -29,7 +37,12 @@ namespace GridCut.Game
             ContinueBtn.onClick.AddListener(StartContinue);
             SelectBtn.onClick.AddListener(OpenLevelSelect);
             SoundBtn.onClick.AddListener(ToggleSound);
-            ResetBtn.onClick.AddListener(ShowResetConfirm);
+            ResetBtn.onClick.AddListener(OpenSettings);          // Pengaturan hub; reset progres live there
+            if (ThemeBtn != null) ThemeBtn.onClick.AddListener(ToggleThemePopup);
+            if (ThemeCloseBtn != null) ThemeCloseBtn.onClick.AddListener(ToggleThemePopup);
+            if (SettingsSoundBtn != null) SettingsSoundBtn.onClick.AddListener(ToggleSound);
+            if (SettingsResetBtn != null) SettingsResetBtn.onClick.AddListener(OnSettingsReset);
+            if (SettingsCloseBtn != null) SettingsCloseBtn.onClick.AddListener(CloseSettings);
             ConfirmYes.onClick.AddListener(ConfirmReset);
             ConfirmNo.onClick.AddListener(HideResetConfirm);
             for (int i = 0; i < ThemeSwatches.Length; i++)
@@ -47,8 +60,19 @@ namespace GridCut.Game
                 Tint("SelectBtn", SelectBtn, c);
                 Tint("SoundBtn", SoundBtn, c);
                 Tint("ResetBtn", ResetBtn, c);
+                Tint("ThemeBtn", ThemeBtn, c);
+                if (MuteIcon != null) MuteIcon.color = c;
+                if (MuteIconOff != null) MuteIconOff.color = c;
+                if (GearIcon != null) GearIcon.color = c;
+                if (ThemeTitle != null) ThemeTitle.color = c;
+                if (SettingsTitle != null) SettingsTitle.color = c;
             };
             _accentTint = c => Tint("ConfirmYes", ConfirmYes, c);
+            _popupTint = c =>
+            {
+                if (ThemeCard != null) ThemeCard.color = c;
+                if (SettingsCard != null) SettingsCard.color = c;
+            };
         }
 
         void OnEnable()
@@ -58,12 +82,17 @@ namespace GridCut.Game
             // applyImmediately: re-tint from the current theme on every appearance
             ThemeApplier.Subscribe(ThemeApplier.Role.Text, _textTint, true);
             ThemeApplier.Subscribe(ThemeApplier.Role.Accent, _accentTint, true);
+            ThemeApplier.Subscribe(ThemeApplier.Role.CellEmpty, _popupTint, true);
         }
 
         void OnDisable()
         {
             ThemeApplier.Unsubscribe(_textTint);
             ThemeApplier.Unsubscribe(_accentTint);
+            ThemeApplier.Unsubscribe(_popupTint);
+            // never revive an overlay when Home reappears
+            if (ThemePopup != null) ThemePopup.SetActive(false);
+            if (SettingsPopup != null) SettingsPopup.SetActive(false);
         }
 
         /// <summary>Recovers scene refs by child name when serialized wiring fails.</summary>
@@ -77,8 +106,22 @@ namespace GridCut.Game
             }
             if (ContinueBtn == null) ContinueBtn = UiFactory.Wire<Button>(this, null, "ContinueBtn");
             if (SelectBtn == null) SelectBtn = UiFactory.Wire<Button>(this, null, "SelectBtn");
+            if (ThemeBtn == null) ThemeBtn = UiFactory.Wire<Button>(this, null, "ThemeBtn");
             if (SoundBtn == null) SoundBtn = UiFactory.Wire<Button>(this, null, "SoundBtn");
             if (ResetBtn == null) ResetBtn = UiFactory.Wire<Button>(this, null, "ResetBtn");
+            if (ThemePopup == null) ThemePopup = UiFactory.WireGo(this, ThemePopup, "ThemePopup");
+            if (SettingsPopup == null) SettingsPopup = UiFactory.WireGo(this, SettingsPopup, "SettingsPopup");
+            if (ThemeCloseBtn == null) ThemeCloseBtn = UiFactory.Wire<Button>(this, ThemeCloseBtn, "ThemePopup/CloseBtn");
+            if (SettingsSoundBtn == null) SettingsSoundBtn = UiFactory.Wire<Button>(this, SettingsSoundBtn, "SettingsPopup/SetSoundBtn");
+            if (SettingsResetBtn == null) SettingsResetBtn = UiFactory.Wire<Button>(this, SettingsResetBtn, "SettingsPopup/SetResetBtn");
+            if (SettingsCloseBtn == null) SettingsCloseBtn = UiFactory.Wire<Button>(this, SettingsCloseBtn, "SettingsPopup/SetCloseBtn");
+            if (MuteIcon == null) MuteIcon = UiFactory.Wire<Image>(this, MuteIcon, "SoundBtn/Icon");
+            if (MuteIconOff == null) MuteIconOff = UiFactory.Wire<Image>(this, MuteIconOff, "SoundBtn/IconOff");
+            if (GearIcon == null) GearIcon = UiFactory.Wire<Image>(this, GearIcon, "ResetBtn/Icon");
+            if (ThemeCard == null) ThemeCard = UiFactory.Wire<Image>(this, ThemeCard, "ThemePopup/Card");
+            if (SettingsCard == null) SettingsCard = UiFactory.Wire<Image>(this, SettingsCard, "SettingsPopup/Card");
+            if (ThemeTitle == null) ThemeTitle = UiFactory.Wire<TMP_Text>(this, ThemeTitle, "ThemePopup/Card/CardTitle");
+            if (SettingsTitle == null) SettingsTitle = UiFactory.Wire<TMP_Text>(this, SettingsTitle, "SettingsPopup/Card/CardTitle");
             if (ConfirmDialog == null) ConfirmDialog = UiFactory.WireGo(this, null, "ConfirmReset");
             if (ConfirmYes == null) ConfirmYes = UiFactory.Wire<Button>(this, null, "ConfirmReset/Yes");
             if (ConfirmNo == null) ConfirmNo = UiFactory.Wire<Button>(this, null, "ConfirmReset/No");
@@ -125,7 +168,60 @@ namespace GridCut.Game
         {
             SaveStore.SetSound(!SaveStore.SoundOn);
             RefreshLabels();
+            RefreshMuteIcon();
+            RefreshSettingsLabels();
             AudioService.Play("tap");
+        }
+
+        // ------------------ bottom-right icon pair (spec Menu utama) ------------------
+        // GO "Icon" sudah dibake di scene lengkap dengan sprite PNG; kode hanya
+        // menukar sprite Mute saat state suara berubah.
+
+        void RefreshMuteIcon()
+        {
+            // dua Image scene-baked (speak-on speak-off); kode hanya memilih yang tampil
+            if (MuteIcon != null) MuteIcon.enabled = SaveStore.SoundOn;
+            if (MuteIconOff != null) MuteIconOff.enabled = !SaveStore.SoundOn;
+        }
+
+        // ------------------------------ theme popup ------------------------------
+
+        /// <summary>Tema: home button membuka/menutup dialog berisi kelima swatch.</summary>
+        void ToggleThemePopup()
+        {
+            if (ThemePopup == null) return;
+            bool show = !ThemePopup.activeSelf;
+            ThemePopup.SetActive(show);
+            AudioService.Play("tap");
+        }
+
+        // --------------------------- settings popup ---------------------------
+
+        void OpenSettings()
+        {
+            if (SettingsPopup == null) return;
+            RefreshSettingsLabels();
+            SettingsPopup.SetActive(true);
+            AudioService.Play("tap");
+        }
+
+        void CloseSettings()
+        {
+            SettingsPopup.SetActive(false);
+            AudioService.Play("tap");
+        }
+
+        /// <summary>Pengaturan → Reset Progres: tutup popup lalu tampilkan dialog konfirmasi.</summary>
+        void OnSettingsReset()
+        {
+            SettingsPopup.SetActive(false);
+            ShowResetConfirm();
+        }
+
+        void RefreshSettingsLabels()
+        {
+            var lab = SettingsSoundBtn != null ? LabelOf(SettingsSoundBtn) : null;
+            if (lab != null) lab.text = SaveStore.SoundOn ? "Suara: nyala" : "Suara: mati";
         }
 
         public void StartContinue() => AppRoot.Instance.StartLevel(SaveStore.UnlockedLevel);
@@ -159,11 +255,13 @@ namespace GridCut.Game
             ThemeApplier.Apply(index);
             RefreshThemeTint();
             AudioService.Play("unlock");
+            if (ThemePopup != null && ThemePopup.activeSelf) ThemePopup.SetActive(false);
         }
 
         public void Show()
         {
             RefreshLabels();
+            RefreshMuteIcon();      // sound may have been toggled on another screen
             RefreshThemeTint();
         }
 
