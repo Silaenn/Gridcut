@@ -24,6 +24,9 @@ namespace GridCut.Game
         public GameplayScreen Gameplay;
         public Image Background;
 
+        [Header("Shared sprites (PNG assets, wired in scene)")]
+        public Sprite StarFull, StarEmpty, Padlock;
+
         enum ScreenId { Home = 0, LevelSelect = 1, Gameplay = 2 }
         readonly List<ScreenId> _history = new();
         ScreenId _current = ScreenId.Home;
@@ -39,6 +42,9 @@ namespace GridCut.Game
             // Start, bukan Awake: pastikan Awake semua screen sudah jalan (listener,
             // auto-wire) sebelum ApplySaved memicu re-tint lewat subscriber OnEnable.
             AutoWireScreens();
+            // slot null = meta PNG belum terimpor / scene belum direload dengan wire baru
+            if (StarFull == null || StarEmpty == null || Padlock == null)
+                Debug.LogWarning("[AppRoot] Sprite belum lengkap di Inspector: StarFull/StarEmpty/Padlock");
             SaveStore.Load();
             LevelRepository.Load();
             AudioService.CreateIfMissing();
