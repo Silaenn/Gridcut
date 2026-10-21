@@ -85,6 +85,8 @@ namespace GridCut.Game
             ThemeApplier.Unsubscribe(_textTint);
             // _boardTint is registered on three roles; Unsubscribe clears all of them
             ThemeApplier.Unsubscribe(_boardTint);
+            // spec: gameplay disembunyikan membuang state input (drag yang berjalan)
+            if (Board != null) Board.ClearPreview();
         }
 
         /// <summary>Recovers scene refs by child name when serialized wiring fails.</summary>
