@@ -1,4 +1,6 @@
 using System;
+using System.Collections;
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
@@ -21,7 +23,12 @@ namespace GridCut.Game
         public Button UndoBtn, ResetBtn, HintBtn, BackBtn, MuteBtn;
         public GameObject WinOverlay;
         public TMP_Text WinTitle, WinDetail;
-        public Button WinNextBtn, WinMenuBtn;
+        public Button WinNextBtn, WinMenuBtn, WinRepeatBtn;
+        public RectTransform WinStarsRow;              // 3 Image anak: Star0..2 (spec 160 px ×1.35)
+        public TMP_Text WinFinishMsg;                  // pesan pengganti Berikutnya di level terakhir
+        public GameObject WinBanner;                   // spanduk tema baru (spec 120 px ×1.35)
+        public TMP_Text WinBannerLabel;
+        public Image[] BannerSwatches;                 // 3 kotak pratinjau warna tema
 
         public event Action<int> LevelFinished;   // levelId, raised once on win
 
@@ -30,7 +37,7 @@ namespace GridCut.Game
         float _elapsed;
         bool _timerRun;
         Action<Color> _textTint, _boardTint;
-        RectTransform _winStars;
+        Coroutine _bannerCo;
         GameObject _tutorial;
         bool _panelCompact;
 
@@ -47,7 +54,8 @@ namespace GridCut.Game
             BackBtn.onClick.AddListener(DoBack);
             if (MuteBtn != null) MuteBtn.onClick.AddListener(ToggleMute);
             WinNextBtn.onClick.AddListener(NextLevel);
-            WinMenuBtn.onClick.AddListener(GoLevelSelect);
+            WinMenuBtn.onClick.AddListener(GoHome);
+            WinRepeatBtn.onClick.AddListener(Replay);
 
             _textTint = c =>
             {
@@ -56,19 +64,11 @@ namespace GridCut.Game
                 if (TimeLabel != null) TimeLabel.color = c;
                 if (WinTitle != null) WinTitle.color = c;
                 if (WinDetail != null) WinDetail.color = c;
+                if (WinFinishMsg != null) WinFinishMsg.color = c;
+                if (WinBannerLabel != null) WinBannerLabel.color = c;
             };
             // Rebuild() is a no-op while Session is unset, so applyImmediately is safe
             _boardTint = _ => Board.ApplyTheme();
-
-            // win stars as sprites above the bottom-aligned detail text
-            // (LiberationSans SDF has no ★/☆ glyphs)
-            WinDetail.alignment = TextAlignmentOptions.Bottom;
-            _winStars = UiFactory.StarRow(WinDetail.transform, "WinStars");
-            _winStars.anchorMin = _winStars.anchorMax = new Vector2(0.5f, 1f);
-            _winStars.pivot = new Vector2(0.5f, 1f);
-            _winStars.sizeDelta = new Vector2(340f, 40f);
-            _winStars.anchoredPosition = new Vector2(0f, -2f);
-            _winStars.gameObject.SetActive(false);
         }
 
         void OnEnable()
@@ -107,6 +107,21 @@ namespace GridCut.Game
             if (WinDetail == null) WinDetail = UiFactory.Wire<TMP_Text>(this, null, "WinOverlay/Card/WinDetail");
             if (WinNextBtn == null) WinNextBtn = UiFactory.Wire<Button>(this, null, "WinOverlay/Card/WinNextBtn");
             if (WinMenuBtn == null) WinMenuBtn = UiFactory.Wire<Button>(this, null, "WinOverlay/Card/WinMenuBtn");
+            if (WinRepeatBtn == null) WinRepeatBtn = UiFactory.Wire<Button>(this, null, "WinOverlay/Card/WinRepeatBtn");
+            if (WinStarsRow == null) WinStarsRow = UiFactory.Wire<RectTransform>(this, null, "WinOverlay/Card/WinStars");
+            if (WinFinishMsg == null) WinFinishMsg = UiFactory.Wire<TMP_Text>(this, null, "WinOverlay/Card/WinFinishMsg");
+            if (WinBanner == null) WinBanner = UiFactory.WireGo(this, null, "WinBanner");
+            if (WinBannerLabel == null) WinBannerLabel = UiFactory.Wire<TMP_Text>(this, null, "WinBanner/BannerLabel");
+            if (BannerSwatches == null || BannerSwatches.Length != 3)
+            {
+                var sw = new List<Image>();
+                for (int i = 0; i < 3; i++)
+                {
+                    var swTr = transform.Find("WinBanner/Swatch" + i);
+                    if (swTr != null) { var im = swTr.GetComponent<Image>(); if (im != null) sw.Add(im); }
+                }
+                if (sw.Count == 3) BannerSwatches = sw.ToArray();
+            }
         }
 
         // ------------------------------ flow -----------------------------------
@@ -141,6 +156,8 @@ namespace GridCut.Game
             UpdateProgress();
             UpdateHintLabel();
             WinOverlay.SetActive(false);
+            if (_bannerCo != null) { StopCoroutine(_bannerCo); _bannerCo = null; }   // spanduk tema ikut reset
+            if (WinBanner != null) WinBanner.SetActive(false);
             ShowTutorial(level.IsTutorial);   // spec: tutorial overlay above the grid (L1–3)
         }
 
@@ -237,17 +254,65 @@ namespace GridCut.Game
             SaveStore.RecordWin(_levelId, stars);
             int best = SaveStore.BestStars(_levelId);
 
-            WinTitle.text = best == 3 ? "Sempurna!" : "Selesai!";
+            WinTitle.text = "Selesai!";   // spec: judul overlay tetap
             WinDetail.text = $"Waktu {TimeSpan.FromSeconds(_elapsed):mm\\:ss}"
                 + (wasUnlocking ? "\nLevel baru terbuka!" : "");
-            _winStars.gameObject.SetActive(true);
-            UiFactory.SetStars(_winStars, best,
+            UiFactory.SetStars(WinStarsRow, best,
                 ThemeApplier.ColorOf(ThemeApplier.Role.Accent),
-                new Color(0.5f, 0.5f, 0.5f, 0.35f));
-            WinNextBtn.gameObject.SetActive(_levelId < SaveStore.LevelCount);
+                new Color(0.55f, 0.55f, 0.55f, 0.9f));
+            bool last = _levelId >= SaveStore.LevelCount;
+            WinNextBtn.gameObject.SetActive(!last);
+            if (WinFinishMsg != null) WinFinishMsg.gameObject.SetActive(last);   // spec: pesan di level terakhir
             WinOverlay.SetActive(true);
             LevelFinished?.Invoke(_levelId);
             if (wasUnlocking) AudioService.Play("unlock");
+
+            var th = ThemeForUnlockedLevel();
+            if (th != null) StartBanner(th);
+        }
+
+        static ThemeLibrary.Theme ThemeForUnlockedLevel()
+        {
+            foreach (var t in ThemeLibrary.All)
+                if (t.UnlockLevel == SaveStore.UnlockedLevel) return t;
+            return null;
+        }
+
+        // spec: spanduk 120 px (×1.35) turun dari atas, hadir total ≈2,5 detik
+        void StartBanner(ThemeLibrary.Theme th)
+        {
+            if (_bannerCo != null) StopCoroutine(_bannerCo);
+            _bannerCo = StartCoroutine(BannerSlide(th));
+        }
+
+        IEnumerator BannerSlide(ThemeLibrary.Theme th)
+        {
+            var rt = (RectTransform)WinBanner.transform;
+            var rest = new Vector2(0f, -12f);
+            var above = new Vector2(0f, rest.y + rt.rect.height + 16f);
+            if (WinBannerLabel != null) WinBannerLabel.text = $"{th.Name} terbuka!";
+            if (BannerSwatches != null)
+                for (int i = 0; i < BannerSwatches.Length; i++)
+                    if (i < th.Rects.Length && BannerSwatches[i] != null
+                        && ColorUtility.TryParseHtmlString(th.Rects[i], out var c))
+                        BannerSwatches[i].color = c;
+            rt.anchoredPosition = above;
+            WinBanner.SetActive(true);
+            yield return Slide(rt, above, rest, 0.25f);
+            yield return new WaitForSecondsRealtime(1.85f);
+            yield return Slide(rt, rest, above, 0.35f);
+            WinBanner.SetActive(false);
+            _bannerCo = null;
+        }
+
+        static IEnumerator Slide(RectTransform rt, Vector2 from, Vector2 to, float dur)
+        {
+            for (float t = 0f; t < dur; t += Time.unscaledDeltaTime)
+            {
+                rt.anchoredPosition = Vector2.Lerp(from, to, Mathf.Clamp01(t / dur));
+                yield return null;
+            }
+            rt.anchoredPosition = to;
         }
 
         public void NextLevel()
@@ -329,6 +394,19 @@ namespace GridCut.Game
 
             rootGo.SetActive(false);
             return rootGo;
+        }
+
+        public void Replay()
+        {
+            WinOverlay.SetActive(false);
+            Show(_levelId);
+            AudioService.Play("tap");
+        }
+
+        public void GoHome()
+        {
+            WinOverlay.SetActive(false);
+            AppRoot.Instance.OpenHome();
         }
 
         public void GoLevelSelect()
