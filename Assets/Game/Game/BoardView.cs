@@ -31,7 +31,8 @@ namespace GridCut.Game
 
         RectTransform _rt;
         Image _preview;
-        List<Image> _rectFill = new List<Image>(64);          // per clue fill image
+        List<Image> _rectFill = new List<Image>(64);          // per clue fill image (valid)
+        List<Image> _neutralFill = new List<Image>(64);       // fill rect netral (spec 18)
         List<TMP_Text> _clueText = new List<TMP_Text>(64);    // per clue label (pulse hint)
         Coroutine _hintCo;
 
@@ -63,6 +64,7 @@ namespace GridCut.Game
             _hintCo = null;
             ClearChildren(_rt);
             _rectFill.Clear();
+            _neutralFill.Clear();
             _clueText.Clear();
 
             Cell = Mathf.Max(24f, Mathf.Floor(EstimateCell(_slot.rect.width, _slot.rect.height, Cols, Rows)));
@@ -151,28 +153,59 @@ namespace GridCut.Game
         public void ShowPlaced()
         {
             for (int ci = 0; ci < Session.ClueCount; ci++)
-            {
-                if (ci >= _rectFill.Count || _rectFill[ci] == null) continue;
-                _rectFill[ci].enabled = false;
-            }
-            foreach (var rect in Session.Placed)
-            {
-                int owner = -1;
-                for (int row = rect.Y; row < rect.Bottom && owner == -1; row++)
-                    for (int col = rect.X; col < rect.Right && owner == -1; col++)
-                        owner = Session.PlacedClueAt(col, row);
-                if (owner < 0 || owner >= _rectFill.Count) continue;
+                if (ci < _rectFill.Count && _rectFill[ci] != null) _rectFill[ci].enabled = false;
 
-                var img = _rectFill[owner];
-                var rc = ThemeApplier.ColorOf(ThemeApplier.Role.Rect, Session.Puzzle.Clues[owner].ColorIndex);
-                img.color = new Color(rc.r, rc.g, rc.b, 0.92f);
-                img.rectTransform.anchorMin = img.rectTransform.anchorMax = new Vector2(0.5f, 0.5f);
-                img.rectTransform.sizeDelta = new Vector2(rect.W * Cell - 2f, rect.H * Cell - 2f);
-                img.rectTransform.anchoredPosition = new Vector2(
-                    -(Cols * Cell) / 2f + (rect.X + rect.W * 0.5f) * Cell,
-                     (Rows * Cell) / 2f - (rect.Y + rect.H * 0.5f) * Cell);
+            int neutralUsed = 0;
+            for (int i = 0; i < Session.Placed.Count; i++)
+            {
+                var rect = Session.Placed[i];
+                int owner = Session.RectOwner(i);
+                Image img;
+                if (owner >= 0 && owner < _rectFill.Count && _rectFill[owner] != null)
+                {
+                    var rc = ThemeApplier.ColorOf(ThemeApplier.Role.Rect, Session.Puzzle.Clues[owner].ColorIndex);
+                    img = _rectFill[owner];
+                    img.color = new Color(rc.r, rc.g, rc.b, 0.92f);
+                }
+                else
+                {
+                    img = NeutralFill(neutralUsed++);   // spec 18: rect tak valid tampil netral
+                    var c = ThemeApplier.ColorOf(ThemeApplier.Role.GridLine);
+                    c.a = 0.55f;
+                    img.color = c;
+                }
+                PlaceFillGeometry(img, rect);
                 img.enabled = true;
             }
+            for (int n = neutralUsed; n < _neutralFill.Count; n++)
+                if (_neutralFill[n] != null) _neutralFill[n].enabled = false;
+        }
+
+        /// <summary>Anchor/ukuran/posisi fill persegi di dalam kisi (dipakai fill
+        /// per-clue maupun fill netral).</summary>
+        void PlaceFillGeometry(Image img, in RectI rect)
+        {
+            img.rectTransform.anchorMin = img.rectTransform.anchorMax = new Vector2(0.5f, 0.5f);
+            img.rectTransform.sizeDelta = new Vector2(rect.W * Cell - 2f, rect.H * Cell - 2f);
+            img.rectTransform.anchoredPosition = new Vector2(
+                -(Cols * Cell) / 2f + (rect.X + rect.W * 0.5f) * Cell,
+                 (Rows * Cell) / 2f - (rect.Y + rect.H * 0.5f) * Cell);
+        }
+
+        /// <summary>Pool fill netral: rect tak valid tidak punya owner clue, jadi
+        /// tidak memetakan ke fill per-clue — pakai Image generik yang dibuat
+        /// sesuai kebutuhan. Sibling index 1 = tepat di atas bg (angka &amp; garis
+        /// kisi tetap terbaca di atasnya).</summary>
+        Image NeutralFill(int n)
+        {
+            if (n < _neutralFill.Count && _neutralFill[n] != null) return _neutralFill[n];
+            var go = new GameObject("fillNeutral", typeof(RectTransform), typeof(Image));
+            var img = go.GetComponent<Image>();
+            img.raycastTarget = false;
+            go.transform.SetParent(_rt, false);
+            go.transform.SetSiblingIndex(1);   // bg selalu index 0 (dibuat pertama di Rebuild)
+            if (n < _neutralFill.Count) _neutralFill[n] = img; else _neutralFill.Add(img);
+            return img;
         }
 
         /// <summary>Hides the drag preview (called on win overlay open).</summary>
@@ -224,11 +257,14 @@ namespace GridCut.Game
             {
                 if (Session.RemoveRectAt(c, r)) return;
                 var one = PuzzleSession.Snap(_dc0, _dr0, c, r, Cols, Rows);
-                if (Session.CouldPlace(one)) Session.Place(one);
+                // ketuk di sel kosong: hanya clue bernilai 1 yang menaruh 1x1,
+                // sel kosong lain tidak melakukan apa-apa (spec 18 Tap)
+                if (Session.RectValid(one)) Session.Place(one);
                 return;
             }
             var rect = PuzzleSession.Snap(_dc0, _dr0, c, r, Cols, Rows);
-            Session.Place(rect);   // overwrite-aware: rect yang beririsan ikut dihapus
+            // spec 18.3: setiap jatuh MENJADI rect — valid (berwarna) atau netral
+            Session.Place(rect);
         }
 
         /// <summary>Sentuhan tanpa tarikan diteruskan ke OnEndDrag: hapus rect pada
@@ -258,8 +294,8 @@ namespace GridCut.Game
         {
             if (Session == null || _preview == null) return;
             var rect = PuzzleSession.Snap(_dc0, _dr0, _dc1, _dr1, Cols, Rows);
-            bool ok = Session.CouldPlace(rect);
-            // spec: rect valid berwarna; tidak valid NETRAL tanpa hukuman
+            bool ok = Session.RectValid(rect);
+            // spec: rect valid berwarna; tidak valid TAMPIL NETRAL — drop tetap dibuat
             if (ok) _preview.color = new Color(0.30f, 0.85f, 0.35f, 0.5f);
             else
             {

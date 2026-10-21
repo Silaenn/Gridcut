@@ -273,8 +273,10 @@ namespace GridCut.Game
 
         static ThemeLibrary.Theme ThemeForUnlockedLevel()
         {
+            // spec literal: tema N terbuka SETELAH level N selesai →
+            // UnlockedLevel (level berikutnya yang terbuka) == N + 1
             foreach (var t in ThemeLibrary.All)
-                if (t.UnlockLevel == SaveStore.UnlockedLevel) return t;
+                if (t.UnlockLevel + 1 == SaveStore.UnlockedLevel) return t;
             return null;
         }
 

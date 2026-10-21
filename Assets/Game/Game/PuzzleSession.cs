@@ -6,12 +6,16 @@ namespace GridCut.Game
 {
     /// <summary>
     /// Mutable runtime state of one puzzle at play time. The BoardView renders and
-    /// feeds pointer results; session owns the rules:
-    /// - a rect is placeable iff, after auto-removing rects it overlaps (spec
-    ///   "menimpa"), it holds exactly one clue and its area equals that clue's
-    ///   value;
-    /// - the puzzle is solved when every clue has a placed rect.
-    /// Spec MVP: tap pada persegi terpasang menghapusnya — menggantikan tombol undo.
+    /// feeds pointer results; session owns the rules (spec 18 "Detail mekanik" —
+    /// menimpa bagian 3–5 bila konflik):
+    /// - state pemain = daftar Rect non-tumpang tindih (Placed + PlacedOwners);
+    /// - rect TIDAK valid (0/2 clue atau luas salah) tetap boleh dibuat — tampil
+    ///   netral, tanpa hukuman; rect valid: tepat satu clue + luas = nilai;
+    /// - menang = semua sel tertutup dan semua rect valid, dicek setiap rect
+    ///   ditambah/dihapus; kesamaan dengan solusi tersimpan TIDAK dijadikan syarat;
+    /// - spec MVP: tap pada rect terpasang menghapusnya (menggantikan tombol undo),
+    ///   tap clue bernilai 1 di sel kosong menaruh 1x1, sel kosong lain diam;
+    /// - hint bertingkat: menyorot angka clue, lalu menempatkan rect solusinya.
     /// </summary>
     public class PuzzleSession
     {
@@ -20,12 +24,11 @@ namespace GridCut.Game
         public readonly DateTime StartedAtUtc = DateTime.UtcNow;
 
         public readonly List<RectI> Placed = new List<RectI>();
-        readonly int[] _cellOwner;      // cell -> placed clue index, -1 free
-        readonly bool[] _placedClue;    // clue index -> placed?
-        readonly List<int> _undo = new List<int>();   // urutan penempatan (paralel dengan Placed)
+        readonly List<int> PlacedOwners = new List<int>();   // paralel dengan Placed; -1 = rect netral
+        readonly bool[] _placedClue;                         // clue index -> sudah tertutup rect valid?
 
-        public event Action<int, RectI> RectPlaced;   // clueIndex, rect
-        public event Action<int, RectI> RectRemoved;  // clueIndex, rect
+        public event Action<int, RectI> RectPlaced;   // owner clue (atau -1 utk rect netral), rect
+        public event Action<int, RectI> RectRemoved;  // owner clue (atau -1), rect
         public event Action Invalid;                  // rejected input
         public event Action<int> HintUsed;            // clueIndex
         public event Action<bool> SolvedChanged;      // true at solve time
@@ -35,15 +38,27 @@ namespace GridCut.Game
         public const int HintLimit = 3;      // spec: Hint button shows remaining (e.g. 2/3)
         public int HintCount { get; private set; }
         public int HintsLeft => HintLimit - HintCount;
-        public bool IsSolved => PlacedCount == ClueCount;
-        public bool CanUndo => _undo.Count > 0;
+        /// <summary>Spec cek menang: SEMUA sel tertutup dan SEMUA rect valid — dicek
+        /// tiap rect ditambah (penghapusan tak bisa membuat menang). Rect valid
+        /// berpasangan bijektif dengan clue (keduanya memuat sel angka ⇒ tak mungkin
+        /// dua rect valid memakai clue sama tanpa tumpang tindih), dan jumlah luas
+        /// semua clue = luas papan ⇒ menutup penuh otomatis. Kesamaan dengan solusi
+        /// tersimpan TIDAK dicek.</summary>
+        public bool IsSolved
+        {
+            get
+            {
+                if (Placed.Count != ClueCount) return false;   // rect netral menahan sampai dihapus
+                for (int i = 0; i < PlacedOwners.Count; i++)
+                    if (PlacedOwners[i] < 0) return false;
+                return true;
+            }
+        }
 
         PuzzleSession(LevelData level, Puzzle puzzle)
         {
             Level = level;
             Puzzle = puzzle;
-            _cellOwner = new int[puzzle.Cols * puzzle.Rows];
-            for (int i = 0; i < _cellOwner.Length; i++) _cellOwner[i] = -1;
             _placedClue = new bool[puzzle.ClueCount];
         }
 
@@ -54,7 +69,8 @@ namespace GridCut.Game
             return new PuzzleSession(level, new Puzzle(level.Cols, level.Rows, clues));
         }
 
-        public int PlacedClueAt(int col, int row) => _cellOwner[col + row * Puzzle.Cols];
+        /// <summary>Owner (clue index) rect ke-`i`; -1 bila rect netral.</summary>
+        public int RectOwner(int index) => PlacedOwners[index];
 
         /// <summary>Snaps a preview drag between two board cells, inclusive of both endpoints.</summary>
         public static RectI Snap(int c0, int r0, int c1, int r1, int cols, int rows)
@@ -66,97 +82,65 @@ namespace GridCut.Game
             return new RectI(x0, y0, x1 - x0 + 1, y1 - y0 + 1);
         }
 
-        /// <summary>
-        /// Spec "menimpa": rect boleh tumpang tindih dengan rect terpasang — yang
-        /// lama otomatis dihapus. Valid pasca-penimpaan: tepat satu angka di dalam
-        /// rect (rect terpasang yang beririsan ikut dihitung karena akan dihapus)
-        /// dan luasnya cocok.
-        /// </summary>
-        public bool CouldPlace(in RectI rect)
+        /// <summary>Validitas satu rect (spec 18): dalam batas kisi, memuat tepat
+        /// satu clue, dan luasnya sama dengan nilai clue itu. Rect tak valid tetap
+        /// BOLEH dibuat — hanya tampil netral (preview memakai ini untuk warna).</summary>
+        public bool RectValid(in RectI rect)
         {
             if (rect.W <= 0 || rect.H <= 0) return false;
             if (rect.X < 0 || rect.Y < 0 || rect.Right > Puzzle.Cols || rect.Bottom > Puzzle.Rows) return false;
-            int ci = -1;
+            int found = -1;
             for (int row = rect.Y; row < rect.Bottom; row++)
                 for (int col = rect.X; col < rect.Right; col++)
                 {
                     int c = Puzzle.ClueIndexAt(col, row);
                     if (c == -1) continue;
-                    if (ci != -1 && c != ci) return false;   // dua angka dalam satu rect
-                    ci = c;
+                    if (found >= 0 && found != c) return false;   // dua angka dalam satu rect
+                    found = c;
                 }
-            if (ci == -1) return false;                      // tidak memuat angka
-            if (rect.Area != Puzzle.Clues[ci].Value) return false;
-            // clue belum dipakai, ATAU dipakai namun rect lamanya ikut terhapus
-            return !_placedClue[ci] || OverlapsAnyPlaced(rect);
-        }
-
-        bool OverlapsAnyPlaced(in RectI rect)
-        {
-            foreach (var r in Placed)
-                if (r.Overlaps(rect)) return true;
-            return false;
+            return found >= 0 && rect.Area == Puzzle.Clues[found].Value;
         }
 
         public void Place(in RectI rect)
         {
             if (IsSolved) return;
-            if (!CouldPlace(rect))
+            if (rect.W <= 0 || rect.H <= 0 || rect.X < 0 || rect.Y < 0
+                || rect.Right > Puzzle.Cols || rect.Bottom > Puzzle.Rows)
             {
-                Invalid?.Invoke();
+                Invalid?.Invoke();   // defensive; TryCell sudah clamp
                 return;
             }
             int ci = UniqueAnchor(rect);
-            // spec menimpa: hapus rect lama yang beririsan sebelum menempatkan
+            // spec 18.3: rect yang tumpang tindih dengan rect baru dihapus otomatis
             for (int i = Placed.Count - 1; i >= 0; i--)
                 if (Placed[i].Overlaps(rect))
                     RemovePlacedAt(i);
             var r = rect;
-            Fill(r, ci);
+            int owner = ci >= 0 && r.Area == Puzzle.Clues[ci].Value ? ci : -1;
             Placed.Add(r);
-            _placedClue[ci] = true;
-            _undo.Add(ci);
-            PlacedCount++;
-            RectPlaced?.Invoke(ci, r);
+            PlacedOwners.Add(owner);
+            if (owner >= 0)
+            {
+                _placedClue[owner] = true;
+                PlacedCount++;
+            }
+            RectPlaced?.Invoke(owner, r);
             if (IsSolved) SolvedChanged?.Invoke(true);
         }
 
+        /// <summary>-1 = tidak memuat clue; -2 = memuat lebih dari satu clue.</summary>
         int UniqueAnchor(in RectI rect)
         {
+            int found = -1;
             for (int row = rect.Y; row < rect.Bottom; row++)
                 for (int col = rect.X; col < rect.Right; col++)
                 {
                     int c = Puzzle.ClueIndexAt(col, row);
-                    if (c != -1) return c;   // CouldPlace memastikan tepat satu
+                    if (c == -1) continue;
+                    if (found >= 0 && found != c) return -2;
+                    found = c;
                 }
-            return -1;
-        }
-
-        void Fill(in RectI r, int owner)
-        {
-            for (int row = r.Y; row < r.Bottom; row++)
-                for (int col = r.X; col < r.Right; col++)
-                    _cellOwner[col + row * Puzzle.Cols] = owner;
-        }
-
-        void Clear(in RectI r)
-        {
-            for (int row = r.Y; row < r.Bottom; row++)
-                for (int col = r.X; col < r.Right; col++)
-                    _cellOwner[col + row * Puzzle.Cols] = -1;
-        }
-
-        public void Undo()
-        {
-            if (IsSolved || _undo.Count == 0) return;
-            int ci = _undo[_undo.Count - 1];
-            _undo.RemoveAt(_undo.Count - 1);
-            var r = Placed[Placed.Count - 1];
-            Placed.RemoveAt(Placed.Count - 1);
-            _placedClue[ci] = false;
-            PlacedCount--;
-            Clear(r);
-            RectRemoved?.Invoke(ci, r);
+            return found;
         }
 
         public void Reset()
@@ -181,13 +165,16 @@ namespace GridCut.Game
         void RemovePlacedAt(int index)
         {
             var r = Placed[index];
-            int ci = _cellOwner[r.X + r.Y * Puzzle.Cols];
+            int owner = PlacedOwners[index];
             Placed.RemoveAt(index);
-            _placedClue[ci] = false;
-            PlacedCount--;
-            Clear(r);
-            _undo.RemoveAll(x => x == ci);
-            RectRemoved?.Invoke(ci, r);
+            PlacedOwners.RemoveAt(index);
+            if (owner >= 0)
+            {
+                _placedClue[owner] = false;
+                PlacedCount--;
+            }
+            RectRemoved?.Invoke(owner, r);
+            _ = IsSolved;   // spec: cek menang juga dijalankan tiap penghapusan (tak bisa jadi menang)
         }
 
         /// <summary>
@@ -227,9 +214,8 @@ namespace GridCut.Game
 
         RectI? RectOfClue(int ci)
         {
-            var clue = Puzzle.Clues[ci];
-            foreach (var r in Placed)
-                if (r.Contains(clue.Col, clue.Row)) return r;
+            for (int i = 0; i < PlacedOwners.Count; i++)
+                if (PlacedOwners[i] == ci) return Placed[i];
             return null;
         }
 

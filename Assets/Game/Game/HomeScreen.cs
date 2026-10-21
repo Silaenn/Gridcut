@@ -237,7 +237,8 @@ namespace GridCut.Game
         {
             SaveStore.ResetProgress();
             // a theme that is now locked falls back to the default Paper theme
-            if (SaveStore.ThemeIndex > 0 && SaveStore.UnlockedLevel < ThemeLibrary.All[SaveStore.ThemeIndex].UnlockLevel)
+            // (strict: tema terbuka hanya bila level N sudah SELESAI → UnlockedLevel > N)
+            if (SaveStore.ThemeIndex > 0 && SaveStore.UnlockedLevel <= ThemeLibrary.All[SaveStore.ThemeIndex].UnlockLevel)
                 ThemeApplier.Apply(0);
             HideResetConfirm();
             RefreshLabels();
@@ -248,7 +249,7 @@ namespace GridCut.Game
         public void SelectTheme(int index)
         {
             var th = ThemeLibrary.All[index];
-            bool unlocked = SaveStore.UnlockedLevel >= th.UnlockLevel || th.UnlockLevel <= 1;
+            bool unlocked = SaveStore.UnlockedLevel > th.UnlockLevel || th.UnlockLevel <= 1;
             var btn = index < ThemeSwatches.Length ? ThemeSwatches[index] : null;
             if (!unlocked)
             {
@@ -294,7 +295,7 @@ namespace GridCut.Game
                     continue;
                 }
                 var th = ThemeLibrary.All[i];
-                bool unlocked = SaveStore.UnlockedLevel >= th.UnlockLevel || th.UnlockLevel <= 1;
+                bool unlocked = SaveStore.UnlockedLevel > th.UnlockLevel || th.UnlockLevel <= 1;
                 // 5 kotak warna pratinjau per kartu
                 for (int s = 0; s < 5; s++)
                 {
@@ -322,7 +323,7 @@ namespace GridCut.Game
                 if (st != null)
                 {
                     st.text = SaveStore.ThemeIndex == i ? "Dipakai"
-                        : unlocked ? "Pilih" : $"Buka di level {th.UnlockLevel}";
+                        : unlocked ? "Pilih" : $"Selesaikan level {th.UnlockLevel}";
                     var c = ThemeApplier.ColorOf(SaveStore.ThemeIndex == i || unlocked
                         ? ThemeApplier.Role.Accent : ThemeApplier.Role.Text);
                     c.a = unlocked || SaveStore.ThemeIndex == i ? 1f : 0.5f;

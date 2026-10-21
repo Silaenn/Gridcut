@@ -13,7 +13,7 @@ namespace GridCut.Game
             public string Background, CellEmpty, GridLine, Text, Accent;
             public string[] Rects;           // 6 colors
 
-            public string Desc => $"{Name} (buka di level {UnlockLevel})";
+            public string Desc => $"{Name} (setelah level {UnlockLevel} selesai)";
         }
 
         public static readonly Theme Paper = new Theme
