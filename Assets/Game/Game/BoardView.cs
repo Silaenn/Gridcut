@@ -9,7 +9,7 @@ namespace GridCut.Game
 {
     /// <summary>
     /// Renders a puzzle board (background, grid lines, clue labels, placed-rect fills)
-    /// and handles pointer → cell input with an axis-locked snapped preview. The whole
+    /// and handles pointer → cell input with a grid-snapped preview. The whole
     /// board rebuilds on level start and on screen resize; puzzles are small enough
     /// (max 14x8 cells) that rebuilds are effectively free.
     /// </summary>
@@ -36,7 +36,6 @@ namespace GridCut.Game
         bool _dragging;
         int _dc0, _dr0, _dc1, _dr1;
         RectTransform _slot;
-        Coroutine _flash;
 
         void Awake() => _rt = (RectTransform)transform;
 
@@ -189,7 +188,6 @@ namespace GridCut.Game
         void Begin(PointerEventData e)
         {
             if (Session == null || Session.IsSolved) return;
-            if (_flash != null) { StopCoroutine(_flash); _flash = null; }   // cancel invalid flash
             if (!TryCell(e.position, out int c, out int r)) return;
             _dragging = true;
             _dc0 = _dc1 = c;
@@ -212,13 +210,23 @@ namespace GridCut.Game
         {
             if (!_dragging) return;
             _dragging = false;
-            if (TryCell(e.position, out int c, out int r)) { _dc1 = c; _dr1 = r; }
-            var rect = PuzzleSession.Snap(_dc0, _dr0, _dc1, _dr1, Cols, Rows);
-            if (!Session.CouldPlace(rect)) _flash = StartCoroutine(FlashInvalid(rect));
-            Session.Place(rect);
+            if (_preview != null) _preview.enabled = false;   // tutup preview apa pun hasil jatuhnya
+            if (!TryCell(e.position, out int c, out int r)) return;
+            // spec: tap tanpa tarikan pada sel terpasang langsung menghapus rect
+            // (menggantikan tombol undo); tap pada clue 1 tetap bisa menaruh 1x1
+            if (c == _dc0 && r == _dr0)
+            {
+                if (Session.RemoveRectAt(c, r)) return;
+                var one = PuzzleSession.Snap(_dc0, _dr0, c, r, Cols, Rows);
+                if (Session.CouldPlace(one)) Session.Place(one);
+                return;
+            }
+            var rect = PuzzleSession.Snap(_dc0, _dr0, c, r, Cols, Rows);
+            Session.Place(rect);   // overwrite-aware: rect yang beririsan ikut dihapus
         }
 
-        /// <summary>A tap without a drag still places a 1x1 rect on that cell.</summary>
+        /// <summary>Sentuhan tanpa tarikan diteruskan ke OnEndDrag: hapus rect pada
+        /// sel itu, atau coba letakkan persegi 1x1 (clue bernilai 1).</summary>
         public void OnPointerUp(PointerEventData e)
         {
             if (!_dragging) return;
@@ -230,11 +238,14 @@ namespace GridCut.Game
             col = row = -1;
             if (!RectTransformUtility.ScreenPointToLocalPointInRectangle(_rt, screenPos, null, out var local))
                 return false;
-            float u = local.x + Cols * Cell * 0.5f;
-            float v = Rows * Cell * 0.5f - local.y;
-            col = Mathf.FloorToInt(u / Cell);
-            row = Mathf.FloorToInt(v / Cell);
-            return col >= 0 && col < Cols && row >= 0 && row < Rows;
+            float halfW = Cols * Cell * 0.5f, halfH = Rows * Cell * 0.5f;
+            float pad = Cell * 0.4f;   // spec: hit area longgar untuk jari
+            if (local.x < -halfW - pad || local.x > halfW + pad
+                || local.y < -halfH - pad || local.y > halfH + pad) return false;
+            float u = local.x + halfW, v = halfH - local.y;
+            col = Mathf.Clamp(Mathf.FloorToInt(u / Cell), 0, Cols - 1);
+            row = Mathf.Clamp(Mathf.FloorToInt(v / Cell), 0, Rows - 1);
+            return true;
         }
 
         void UpdatePreview()
@@ -242,9 +253,14 @@ namespace GridCut.Game
             if (Session == null || _preview == null) return;
             var rect = PuzzleSession.Snap(_dc0, _dr0, _dc1, _dr1, Cols, Rows);
             bool ok = Session.CouldPlace(rect);
-            _preview.color = ok
-                ? new Color(0.30f, 0.85f, 0.35f, 0.5f)
-                : new Color(0.92f, 0.22f, 0.22f, 0.42f);
+            // spec: rect valid berwarna; tidak valid NETRAL tanpa hukuman
+            if (ok) _preview.color = new Color(0.30f, 0.85f, 0.35f, 0.5f);
+            else
+            {
+                var c = ThemeApplier.ColorOf(ThemeApplier.Role.GridLine);
+                c.a = 0.4f;
+                _preview.color = c;
+            }
             _preview.enabled = true;
             FitPreview(rect);
         }
@@ -256,17 +272,6 @@ namespace GridCut.Game
             _preview.rectTransform.anchoredPosition = new Vector2(
                 -(Cols * Cell) / 2f + (rect.X + rect.W * 0.5f) * Cell,
                  (Rows * Cell) / 2f - (rect.Y + rect.H * 0.5f) * Cell);
-        }
-
-        /// <summary>Red flash on a rejected drop so invalid taps are visible, not just audible.</summary>
-        System.Collections.IEnumerator FlashInvalid(RectI rect)
-        {
-            _preview.color = new Color(0.92f, 0.22f, 0.22f, 0.55f);
-            _preview.enabled = true;
-            FitPreview(rect);
-            yield return new WaitForSeconds(0.16f);
-            _preview.enabled = false;
-            _flash = null;
         }
 
         /// <summary>Sits on the invisible full-board input image and forwards events.</summary>

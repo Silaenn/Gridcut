@@ -20,7 +20,7 @@ namespace GridCut.Game
         public RectTransform BoardSlot;      // stretches to the board area
         public RectTransform Panel;          // 360-unit side panel / bottom strip
         public TMP_Text LevelLabel, ProgressLabel, TimeLabel;
-        public Button UndoBtn, ResetBtn, HintBtn, BackBtn, MuteBtn;
+        public Button ResetBtn, HintBtn, BackBtn, MuteBtn;
         public GameObject WinOverlay;
         public TMP_Text WinTitle, WinDetail;
         public Button WinNextBtn, WinMenuBtn, WinRepeatBtn;
@@ -48,7 +48,6 @@ namespace GridCut.Game
         void Awake()
         {
             AutoWire();
-            UndoBtn.onClick.AddListener(DoUndo);
             ResetBtn.onClick.AddListener(DoReset);
             HintBtn.onClick.AddListener(DoHint);
             BackBtn.onClick.AddListener(DoBack);
@@ -99,7 +98,6 @@ namespace GridCut.Game
             if (LevelLabel == null) LevelLabel = UiFactory.Wire<TMP_Text>(this, null, "Panel/LevelLabel");
             if (ProgressLabel == null) ProgressLabel = UiFactory.Wire<TMP_Text>(this, null, "Panel/ProgressLabel");
             if (TimeLabel == null) TimeLabel = UiFactory.Wire<TMP_Text>(this, null, "Panel/TimeLabel");
-            if (UndoBtn == null) UndoBtn = UiFactory.Wire<Button>(this, null, "Panel/UndoBtn");
             if (ResetBtn == null) ResetBtn = UiFactory.Wire<Button>(this, null, "Panel/ResetBtn");
             if (HintBtn == null) HintBtn = UiFactory.Wire<Button>(this, null, "Panel/HintBtn");
             if (BackBtn == null) BackBtn = UiFactory.Wire<Button>(this, null, "Panel/BackBtn");
@@ -187,7 +185,7 @@ namespace GridCut.Game
             if (LevelLabel != null) LevelLabel.gameObject.SetActive(!compact);
             if (ProgressLabel != null) ProgressLabel.gameObject.SetActive(!compact);
             if (TimeLabel != null) TimeLabel.gameObject.SetActive(!compact);
-            foreach (var b in new[] { BackBtn, HintBtn, UndoBtn, ResetBtn, MuteBtn })
+            foreach (var b in new[] { BackBtn, HintBtn, ResetBtn, MuteBtn })
             {
                 var t = b != null ? b.GetComponentInChildren<TMP_Text>(true) : null;
                 if (t != null) t.fontSize = compact ? 26f : 38f;
@@ -343,9 +341,9 @@ namespace GridCut.Game
             1 => "Tarik di atas kisi untuk meletakkan persegi panjang.\n\n"
                + "Angka di sel adalah luas persegi yang harus menutupinya.\n\n"
                + "Setiap angka hanya boleh ditutup oleh satu persegi.",
-            2 => "Persegi tidak boleh menindih persegi lain —\nsel yang dilalui harus masih kosong.\n\n"
+            2 => "Persegi baru yang menimpa persegi lama otomatis\nmenghapus yang lama.\n\n"
                + "Tutup seluruh papan tanpa sisa.\n\n"
-               + "Salah menarik? Tekan Undo lalu tarik ulang.",
+               + "Salah menarik? Tap persegi untuk menghapusnya.",
             _ => "Buntu? Reset mengosongkan papan.\n\n"
                + "Hint meletakkan satu persegi yang benar,\ntetapi setiap Hint memangkas bintang.\n\n"
                + "Setelah level ini, kisi kian besar dan kian menantang.",
@@ -417,8 +415,8 @@ namespace GridCut.Game
             AppRoot.Instance.OpenLevelSelect();
         }
 
-        public void DoUndo() => _session.Undo();
         public void DoReset() => _session.Reset();
+
 
         public void DoHint()
         {

@@ -7,11 +7,11 @@ namespace GridCut.Game
     /// <summary>
     /// Mutable runtime state of one puzzle at play time. The BoardView renders and
     /// feeds pointer results; session owns the rules:
-    /// - a rect is placeable iff it covers only free cells, contains exactly one
-    ///   unplaced clue and its area equals that clue's value (same predicate as the
-    ///   Core RectCandidates definition, evaluated without enumerating candidates);
+    /// - a rect is placeable iff, after auto-removing rects it overlaps (spec
+    ///   "menimpa"), it holds exactly one clue and its area equals that clue's
+    ///   value;
     /// - the puzzle is solved when every clue has a placed rect.
-    /// Rects stack; Undo pops; Reset clears; Hint reveals the next clue's solution.
+    /// Spec MVP: tap pada persegi terpasang menghapusnya — menggantikan tombol undo.
     /// </summary>
     public class PuzzleSession
     {
@@ -22,7 +22,7 @@ namespace GridCut.Game
         public readonly List<RectI> Placed = new List<RectI>();
         readonly int[] _cellOwner;      // cell -> placed clue index, -1 free
         readonly bool[] _placedClue;    // clue index -> placed?
-        readonly Stack<int> _undoStack = new Stack<int>();
+        readonly List<int> _undo = new List<int>();   // urutan penempatan (paralel dengan Placed)
 
         public event Action<int, RectI> RectPlaced;   // clueIndex, rect
         public event Action<int, RectI> RectRemoved;  // clueIndex, rect
@@ -36,7 +36,7 @@ namespace GridCut.Game
         public int HintCount { get; private set; }
         public int HintsLeft => HintLimit - HintCount;
         public bool IsSolved => PlacedCount == ClueCount;
-        public bool CanUndo => _undoStack.Count > 0;
+        public bool CanUndo => _undo.Count > 0;
 
         PuzzleSession(LevelData level, Puzzle puzzle)
         {
@@ -66,27 +66,36 @@ namespace GridCut.Game
             return new RectI(x0, y0, x1 - x0 + 1, y1 - y0 + 1);
         }
 
+        /// <summary>
+        /// Spec "menimpa": rect boleh tumpang tindih dengan rect terpasang — yang
+        /// lama otomatis dihapus. Valid pasca-penimpaan: tepat satu angka di dalam
+        /// rect (rect terpasang yang beririsan ikut dihitung karena akan dihapus)
+        /// dan luasnya cocok.
+        /// </summary>
         public bool CouldPlace(in RectI rect)
         {
             if (rect.W <= 0 || rect.H <= 0) return false;
             if (rect.X < 0 || rect.Y < 0 || rect.Right > Puzzle.Cols || rect.Bottom > Puzzle.Rows) return false;
-            if (!FindUniqueAnchor(rect, out int ci)) return false;
-            return rect.Area == Puzzle.Clues[ci].Value;
-        }
-
-        bool FindUniqueAnchor(in RectI rect, out int ci)
-        {
-            ci = -1;
+            int ci = -1;
             for (int row = rect.Y; row < rect.Bottom; row++)
                 for (int col = rect.X; col < rect.Right; col++)
                 {
-                    if (_cellOwner[col + row * Puzzle.Cols] != -1) return false;
                     int c = Puzzle.ClueIndexAt(col, row);
                     if (c == -1) continue;
-                    if (ci != -1) return false;      // two clues in one rect
+                    if (ci != -1 && c != ci) return false;   // dua angka dalam satu rect
                     ci = c;
                 }
-            return ci != -1 && !_placedClue[ci];
+            if (ci == -1) return false;                      // tidak memuat angka
+            if (rect.Area != Puzzle.Clues[ci].Value) return false;
+            // clue belum dipakai, ATAU dipakai namun rect lamanya ikut terhapus
+            return !_placedClue[ci] || OverlapsAnyPlaced(rect);
+        }
+
+        bool OverlapsAnyPlaced(in RectI rect)
+        {
+            foreach (var r in Placed)
+                if (r.Overlaps(rect)) return true;
+            return false;
         }
 
         public void Place(in RectI rect)
@@ -97,15 +106,30 @@ namespace GridCut.Game
                 Invalid?.Invoke();
                 return;
             }
-            FindUniqueAnchor(rect, out int ci);
+            int ci = UniqueAnchor(rect);
+            // spec menimpa: hapus rect lama yang beririsan sebelum menempatkan
+            for (int i = Placed.Count - 1; i >= 0; i--)
+                if (Placed[i].Overlaps(rect))
+                    RemovePlacedAt(i);
             var r = rect;
             Fill(r, ci);
             Placed.Add(r);
             _placedClue[ci] = true;
-            _undoStack.Push(ci);
+            _undo.Add(ci);
             PlacedCount++;
             RectPlaced?.Invoke(ci, r);
             if (IsSolved) SolvedChanged?.Invoke(true);
+        }
+
+        int UniqueAnchor(in RectI rect)
+        {
+            for (int row = rect.Y; row < rect.Bottom; row++)
+                for (int col = rect.X; col < rect.Right; col++)
+                {
+                    int c = Puzzle.ClueIndexAt(col, row);
+                    if (c != -1) return c;   // CouldPlace memastikan tepat satu
+                }
+            return -1;
         }
 
         void Fill(in RectI r, int owner)
@@ -124,8 +148,9 @@ namespace GridCut.Game
 
         public void Undo()
         {
-            if (IsSolved || _undoStack.Count == 0) return;
-            int ci = _undoStack.Pop();
+            if (IsSolved || _undo.Count == 0) return;
+            int ci = _undo[_undo.Count - 1];
+            _undo.RemoveAt(_undo.Count - 1);
             var r = Placed[Placed.Count - 1];
             Placed.RemoveAt(Placed.Count - 1);
             _placedClue[ci] = false;
@@ -138,15 +163,31 @@ namespace GridCut.Game
         {
             if (Placed.Count == 0) return;
             for (int i = Placed.Count - 1; i >= 0; i--)
-            {
-                _placedClue[_undoStack.Pop()] = false;
-                var r = Placed[i];
-                Clear(r);
-                RectRemoved?.Invoke(-1, r); // -1 placeholder: cleared rect
-            }
-            PlacedCount = 0;
-            Placed.Clear();
-            _undoStack.Clear();
+                RemovePlacedAt(i);
+        }
+
+        /// <summary>Spec: tap pada persegi terpasang menghapusnya (sel apa pun dalam rect).</summary>
+        public bool RemoveRectAt(int col, int row)
+        {
+            for (int i = Placed.Count - 1; i >= 0; i--)
+                if (Placed[i].Contains(col, row))
+                {
+                    RemovePlacedAt(i);
+                    return true;
+                }
+            return false;
+        }
+
+        void RemovePlacedAt(int index)
+        {
+            var r = Placed[index];
+            int ci = _cellOwner[r.X + r.Y * Puzzle.Cols];
+            Placed.RemoveAt(index);
+            _placedClue[ci] = false;
+            PlacedCount--;
+            Clear(r);
+            _undo.RemoveAll(x => x == ci);
+            RectRemoved?.Invoke(ci, r);
         }
 
         /// <summary>Auto-places the next unsolved clue from the stored solution; returns its rect.</summary>
