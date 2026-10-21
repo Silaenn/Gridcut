@@ -29,7 +29,7 @@ namespace GridCut.Game
         public Image MuteIcon, MuteIconOff, GearIcon, ThemeCard, SettingsCard;   // sprite ikon dari Assets/Game/UI/Icons
         public TMP_Text ThemeTitle, SettingsTitle;
 
-        Action<Color> _textTint, _accentTint, _popupTint;
+        Action<Color> _textTint, _popupTint;
 
         void Awake()
         {
@@ -67,8 +67,10 @@ namespace GridCut.Game
                 if (GearIcon != null) GearIcon.color = c;
                 if (ThemeTitle != null) ThemeTitle.color = c;
                 if (SettingsTitle != null) SettingsTitle.color = c;
+                // dialog reset: label mengikuti pola menu (teks gelap pada tombol aksen)
+                Tint("ConfirmYes", ConfirmYes, c);
+                Tint("ConfirmNo", ConfirmNo, c);
             };
-            _accentTint = c => Tint("ConfirmYes", ConfirmYes, c);
             _popupTint = c =>
             {
                 if (ThemeCard != null) ThemeCard.color = c;
@@ -82,14 +84,12 @@ namespace GridCut.Game
             RefreshThemeTint();
             // applyImmediately: re-tint from the current theme on every appearance
             ThemeApplier.Subscribe(ThemeApplier.Role.Text, _textTint, true);
-            ThemeApplier.Subscribe(ThemeApplier.Role.Accent, _accentTint, true);
             ThemeApplier.Subscribe(ThemeApplier.Role.CellEmpty, _popupTint, true);
         }
 
         void OnDisable()
         {
             ThemeApplier.Unsubscribe(_textTint);
-            ThemeApplier.Unsubscribe(_accentTint);
             ThemeApplier.Unsubscribe(_popupTint);
             // never revive an overlay when Home reappears
             if (ThemePopup != null) ThemePopup.SetActive(false);
