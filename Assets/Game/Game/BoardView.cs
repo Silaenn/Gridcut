@@ -24,6 +24,10 @@ namespace GridCut.Game
         public int Cols { get; private set; }
         public int Rows { get; private set; }
 
+        // spec event umpan balik (juice & audio)
+        public event System.Action DragStarted;       // drag dimulai pada sebuah sel
+        public event System.Action DragCellChanged;   // preview berpindah sel (termasuk clamp tepi)
+
         // spec sizes use 1280-wide reference units; ×1.35 matches the app-wide rebake
         public const float Ref = 1.35f;
         const float MaxCell = 150f * Ref;   // spec: cells never exceed 150 reference
@@ -239,6 +243,7 @@ namespace GridCut.Game
             _dc0 = _dc1 = c;
             _dr0 = _dr1 = r;
             UpdatePreview();
+            DragStarted?.Invoke();   // spec umpan balik
         }
 
         public void OnDrag(PointerEventData e)
@@ -250,6 +255,7 @@ namespace GridCut.Game
             {
                 _dc1 = c; _dr1 = r;
                 UpdatePreview();
+                DragCellChanged?.Invoke();   // spec umpan balik
             }
         }
 

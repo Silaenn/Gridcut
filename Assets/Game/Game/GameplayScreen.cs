@@ -30,7 +30,7 @@ namespace GridCut.Game
         public TMP_Text WinBannerLabel;
         public Image[] BannerSwatches;                 // 3 kotak pratinjau warna tema
 
-        public event Action<int> LevelFinished;   // levelId, raised once on win
+        public event Action<int, int> LevelCompleted;   // levelId, stars — spec event umpan balik
 
         PuzzleSession _session;
         int _levelId;
@@ -55,6 +55,11 @@ namespace GridCut.Game
             WinNextBtn.onClick.AddListener(NextLevel);
             WinMenuBtn.onClick.AddListener(GoHome);
             WinRepeatBtn.onClick.AddListener(Replay);
+            if (Board != null)
+            {
+                Board.DragStarted += OnDragStarted;
+                Board.DragCellChanged += OnDragCellChanged;
+            }
 
             _textTint = c =>
             {
@@ -244,6 +249,18 @@ namespace GridCut.Game
             SavePlay();   // hint terpakai ikut tersimpan
         }
 
+        // spec event umpan balik (BoardView → GameplayScreen):
+        void OnDragStarted()
+        {
+            if (_session != null && !_session.IsSolved) AudioService.Play("drag");
+        }
+
+        void OnDragCellChanged()
+        {
+            // hook juice: preview sudah berpindah sendiri; tanpa sfx agar tidak
+            // becek saat geser cepat lintas sel
+        }
+
         /// <summary>Simpan Rect + hint terpakai level ini. Dilewati saat solved —
         /// menang memanggil ClearPlayState (level tidak lagi "sedang dimainkan").</summary>
         void SavePlay()
@@ -288,7 +305,7 @@ namespace GridCut.Game
             WinNextBtn.gameObject.SetActive(!last);
             if (WinFinishMsg != null) WinFinishMsg.gameObject.SetActive(last);   // spec: pesan di level terakhir
             WinOverlay.SetActive(true);
-            LevelFinished?.Invoke(_levelId);
+            LevelCompleted?.Invoke(_levelId, stars);
             if (wasUnlocking) AudioService.Play("unlock");
 
             var th = ThemeForUnlockedLevel();
@@ -448,6 +465,7 @@ namespace GridCut.Game
         {
             if (_session == null || _session.IsSolved || _session.HintsLeft <= 0) return;
             if (!_session.TryGetHintTarget(out int ci, out _)) return;
+            AudioService.Play("tap");   // spec: HintUsed = event umpan balik (terhitung tahap 1)
             // spec hint bertingkat: kedipkan angka dulu, baru rect solusi ditempatkan
             var session = _session;   // pengaman bila level berganti saat animasi jalan
             Board.HintPulse(ci, () => session.ApplyHint(ci));

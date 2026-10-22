@@ -58,7 +58,7 @@ namespace GridCut.Game
             }
             Application.targetFrameRate = 60;
 
-            if (Gameplay != null) Gameplay.LevelFinished += OnLevelFinished;
+            if (Gameplay != null) Gameplay.LevelCompleted += OnLevelCompleted;
             BakeButtonFeel();
             Switch(ScreenId.Home, push: false);
         }
@@ -68,7 +68,7 @@ namespace GridCut.Game
             // play mode without domain reload keeps statics across sessions; leave
             // nothing behind that would touch destroyed objects on the next play
             ThemeApplier.Unsubscribe(_bgTint);
-            if (Gameplay != null) Gameplay.LevelFinished -= OnLevelFinished;
+            if (Gameplay != null) Gameplay.LevelCompleted -= OnLevelCompleted;
         }
 
         /// <summary>
@@ -215,7 +215,7 @@ namespace GridCut.Game
             }
         }
 
-        void OnLevelFinished(int levelId)
+        void OnLevelCompleted(int levelId, int stars)
         {
             // placeholder: portals inject their interstitial via IAdService
             if (levelId < SaveStore.LevelCount && levelId % 5 == 0 && _ads.InterstitialReady)

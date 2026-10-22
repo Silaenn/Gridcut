@@ -11,7 +11,7 @@ namespace GridCut.Game
     {
         public static AudioService Instance { get; private set; }
 
-        AudioClip _place, _invalid, _win, _tap, _unlock;
+        AudioClip _place, _invalid, _win, _tap, _unlock, _drag;
         AudioSource _src;
 
         const int Rate = 22050;
@@ -33,6 +33,7 @@ namespace GridCut.Game
             _invalid = Tone(new (float f, float s, float a)[] { (150f, 0.14f, 0.7f), (110f, 0.14f, 0.6f) });
             _unlock = Tone(new (float f, float s, float a)[] { (523f, 0.1f, 0.5f), (659f, 0.1f, 0.5f), (784f, 0.14f, 0.5f) });
             _win = Tone(new (float f, float s, float a)[] { (523f, 0.12f, 0.55f), (659f, 0.12f, 0.55f), (784f, 0.12f, 0.55f), (1047f, 0.24f, 0.55f) });
+            _drag = Tone(new (float f, float s, float a)[] { (880f, 0.03f, 0.3f) });   // tick lembut DragStarted
             _src = gameObject.AddComponent<AudioSource>();
             _src.playOnAwake = false;
         }
@@ -68,6 +69,7 @@ namespace GridCut.Game
                 "invalid" => Instance._invalid,
                 "win" => Instance._win,
                 "unlock" => Instance._unlock,
+                "drag" => Instance._drag,
                 _ => Instance._tap,
             };
             Instance._src.pitch = 1f;
