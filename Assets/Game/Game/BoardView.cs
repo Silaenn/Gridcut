@@ -47,6 +47,7 @@ namespace GridCut.Game
         bool _dragging;
         int _dragPointerId = int.MinValue;   // sentuhan aktif; sentuhan lain diabaikan (spec)
         int _dc0, _dr0, _dc1, _dr1;
+        bool _movedAny;   // spec bag.5: tap = naik di sel jangkar DAN tak pernah pindah sel
         RectTransform _slot;
 
         void Awake() => _rt = (RectTransform)transform;
@@ -242,6 +243,7 @@ namespace GridCut.Game
             _dragPointerId = e.pointerId;
             _dc0 = _dc1 = c;
             _dr0 = _dr1 = r;
+            _movedAny = false;
             UpdatePreview();
             DragStarted?.Invoke();   // spec umpan balik
         }
@@ -253,6 +255,7 @@ namespace GridCut.Game
                 && !TryCellClamped(e.position, out c, out r)) return;
             if (c != _dc1 || r != _dr1)
             {
+                _movedAny |= (c != _dc0 || r != _dr0);
                 _dc1 = c; _dr1 = r;
                 UpdatePreview();
                 DragCellChanged?.Invoke();   // spec umpan balik
@@ -269,8 +272,10 @@ namespace GridCut.Game
             if (!TryCell(e.position, out int c, out int r)
                 && !TryCellClamped(e.position, out c, out r)) return;
             // spec: tap tanpa tarikan pada sel terpasang langsung menghapus rect
-            // (menggantikan tombol undo); tap pada clue 1 tetap bisa menaruh 1x1
-            if (c == _dc0 && r == _dr0)
+            // (menggantikan tombol undo); tap pada clue 1 tetap bisa menaruh 1x1.
+            // Syarat lengkap bag.5: naik di sel jangkar DAN tak pernah pindah sel —
+            // yang sempat keluar sel lalu kembali = tarik (commit 1x1 via Place)
+            if (c == _dc0 && r == _dr0 && !_movedAny)
             {
                 if (Session.RemoveRectAt(c, r)) return;
                 var one = PuzzleSession.Snap(_dc0, _dr0, c, r, Cols, Rows);

@@ -263,3 +263,43 @@ dotnet run -c Release -- calibrate # hanya rentang skor per ukuran
 - ✗→✅ **LevelCompleted(stars)** — dulu `LevelFinished : Action<int>` tanpa bintang + sfx "win" di `OnSolved`. kini `GameplayScreen.LevelCompleted : Action<int levelId, int stars>` (dipanggil di `OpenWinOverlay` — bintang sudah dihitung), pelanggan tunggal `AppRoot` diperbarui 3 titik (`OnLevelFinished` → `OnLevelCompleted(levelId, stars)`), isi handler tak berubah (interstitial tiap kelipatan 5 level via IAdService).
 - `_drag` clip sama-sama tunduk mute global (`SaveStore.SoundOn`) + satu channel ✔ bag. audio.
 - Braces 4 file = 0 (BoardView 45/45, GameplayScreen 55/55, AppRoot 33/33, AudioService 17/17); grep tidak menyisa `LevelFinished|OnLevelFinished`.
+
+## Audit bag. 19 "Tata letak UI (landscape)" (22 Okt) — TANPA perubahan kode
+
+- ✔ **CanvasScaler 1920×1080 + match-height**: `Boot.unity` & `Main.unity` `m_UiScaleMode: 1`, `m_ReferenceResolution {1920,1080}`, `m_ScreenMatchMode: 0`, `m_MatchWidthOrHeight: 1` — konsisten dengan `ConfigurePanelMode` yang menghitung skala nyata `Screen.height/1080`.
+- ✔ **Area aman (notch)**: komponen `SafeArea.cs` (`Screen.safeArea` → anchor/offset root) TERPASANG di scene: hierarki `UICanvas → SafeArea (stretch penuh) → Background, LevelSelect, Home, Gameplay` — semua layar interaktif di dalam safe area; Boot splash tetap full-bleed (wajar utk splash). Update() memantau perubahan safe area (rotasi/dll).
+- ✔ **Tombol ≥ 48 px nyata**: panel 438×160 (Back/Hint/Reset/Mute) — pada_Device setinggi 720p (faktor 0.667) = 292×107 px nyata ≫ 48; Win overlay 202.5 kvadrat & 567×202.5 juga aman; compact mode hanya mengecilkan FONT 38→26, hit area tetap 160.
+- ✔ **~70% grid / panel kanan rinci**: slot grid 1434 = 74.7% (kasar "±70%"); panel `FullWidth 486` = 25.3% (kasar "±30%") — keputusan rinci dulu (jurnal d 78/109: **panel 360 spec-unit ×1.35**, tombol 438×160, gap 24, pad 24, total pas 1080) sesuai denerate bag. 19 "proporsi rinci ada di tab Spesifikasi build" — kasar ±5 pt dilindungi oleh butir itu.
+- ✔ **Ukuran sel otomatis + minimum + kecilkan panel bila tak muat**: `BoardView.EstimateCell` (sumber tunggal; max 150×1.35, floor 24 canvas) + `ConfigurePanelMode` — bila sel nyata < 32 px pd panel penuh → **panel 486→297** (slot ikut melebar), label status disembunyikan, font tombol 26 — persis rule spec "kecilkan panel samping, bukan sel"; target 30–40 px terpenuhi (dry 32).
+- ✔ **Panel samping konten**: Menu «, nomor level, hint sisa ("Hint n/3"), Hint, Reset, Mute — ditambah Progress "n/n" & waktu (lebih dari minimum; tak ada larangan). Tanpa bar atas ✔ semuanya di panel — sesuai wireframe "Menu" di atas panel.
+- ✔ **Grid di tengah area** + tidak ada reflow potret (keputusan user landscape 1920×1080 tetap, strip-bawah potret dipangkas dari rencana awal).
+
+## Audit bag. Menu utama / Pilih level / Level selesai (22 Okt) — TANPA perubahan kode
+
+- ✔ **Menu utama 5/5**: judul "GridCut" (scene); tombol lanjut level terakhir = "Lanjutkan · {UnlockedLevel}" (runtime `RefreshLabels` — fungsi persis spec, label bukan literal "Main"); "Pilih Level", "Tema" (swatch popup: Pilih/Dipakai/"Selesaikan level N"), "Pengaturan" (Reset Progres + dialog konfirmasi "Hapus semua progres?" / "Ya, hapus" / "Batal"); ikon suara pojok.
+- ✔ **Pilih level**: `PerPage = 15` (kisi 5×3, komentar spec di kode), 150 level → PageLabel "n / 10"; tombol prev/next "«"/"»" (clamp 0..pages−1); tiap sel 265×265: nomor (unlocked), terkunci = gembok ikon + nomor disembunyikan + redup + getar saat tap (`Shake`, tak bisa dibuka), selesai = `StarRow` bintang putih `BestStars(id)`; **halaman otomatis di level aktif** — `Show(): _page = (UnlockedLevel-1)/PerPage`.
+- ✔ **Overlay selesai**: bintang 1–3 (`WinStars` Star0–2, `SetStars(best)` — best dari aturan hint 0/1/≥2); "Level Berikutnya" (`WinNextBtn`, disembunyikan di L150 → `WinFinishMsg` "Semua level selesai!"); Ulangi & Menu = tombol ikon (`WinRepeatBtn`/`WinMenuBtn` 202.5², keputusan bake ikonik — bukan teks literal); **tema baru**: `WinBanner` + BannerLabel + 3 swatch pratinjau palet diisi warna tema via `StartBanner(th)` di L10/30/60/100 (scene punya Swatch0–4; kode mengawali 3 pertama & `sw.Count == 3` lolos).
+
+## Audit bag. Tema + Pengaturan (22 Okt) — TANPA perubahan kode
+
+- ✔ **Tema, daftar 5**: loop 5 kartu — Neon/Laut/Hutan/Kertas/Malam (teks scene); tiap kartu **pratinjau palet = 5 swatch** diisi `ThemeApplier.Parse(th.Rects[clamp s])` (warna per-rect tema, σ dengan jumlah rect tema), alpha 0.35 terkunci / 1.0 terbuka; nama redup 0.4 saat terkunci.
+- ✔ **Status & tanda aktif**: label Status = `"Dipakai"` (tema aktif, warna accent) / `"Pilih"` (terbuka) / `"Selesaikan level N"` (syarat buka, redup 0.5).
+- ✔ **Syarat buka konsisten**: aturan `SaveStore.UnlockedLevel > th.UnlockLevel || th.UnlockLevel <= 1` (base tema dijamin bebas sejak L1); `RecordWin` → `UnlockedLevel = levelId + 1` — selesai L10 → UL 11 > 10 → terbuka tepat saat selesai, cocok dengan teks kartu; kartu terkunci tetap interaktif → tap = getar (spec).
+- ✔ **Benteng data basi**: fallback HomeScreen — bila `ThemeIndex > 0` tapi `UnlockedLevel <= UnlockLevel` (mis. save lama/aset pengaturan berubah) → turunkan ke tema 0 saat refresh UI.
+- ✔ **Pengaturan**: satu tombol mute "Suara: nyala/mati" (cabang eksplisit spec "(atau satu tombol mute)" — slider musik/SFX tidak wajib); Reset Progres merah #D64545 + dialog konfirmasi "Hapus semua progres?" / "Ya, hapus" / "Batal" (diaudit+fix di sesi lampau); reset progres menutup kembali tema terkunci (`UnlockedLevel = 1` + fallback di atas).
+
+## Audit bag. "Tombol tambahan yang sengaja tidak ada" (22 Okt) — TANPA perubahan kode
+
+- ✔ **Undo**: tidak di scene & tidak di kode — `grep -in undo` hanya komentar `BoardView` "(menggantikan tombol undo)" (keputusan bag. 3: tap-hapus = mekanisme pengganti); urutan panel lama dgn UndoBtn sudah respaced.
+- ✔ **Pause**: tidak ada tombol/logika pause gameplay — hanya komentar `AdService` tentang portal yang mem-bisukan audio saat iklan (bukan fitur pause); keluar lvl = tombol Menu «.
+- ✔ **Timer**: tidak ada **tombol** timer (tak ada kontrol interaktif) — yang ada `TimeLabel` pasif sebagai statistik pribadi, keputusan bag. 3/5 terdahulu ("waktu TIDAK masuk bintang, TimeLabel = statistik pribadi ✔", jurnal); resume → 0:00 (timer tak disimpan, spec Rect+hint); berhenti saat solved & saat overlay (Waktu = statistik di `WinDetail`).
+- ✔ **Tombol iklan**: grep "Iklan"/ad-button di semua scene & kode = nol hasil; inventaris lengkap tombol scene: Back/Close/Continue/Hint/Mute/Next/Prev/Reset/Select/SetClose/SetReset/SetSound/Sound/Theme/WinMenu/WinNext/WinRepeat — tidak satu pun iklan; interstitial hanya via `IAdService` (injeksi portal tiap 5 level, bukan tombol UI; portal tanpa rewarded aman).
+
+## Audit bag. 5 "Lapisan input" (22 Okt) — ✗→✅ 1 FIX kecil di BoardView
+
+- ✔ **Butir 1 — satu area transparan + aliran event lengkap**: `BoardView` menutupi seluruh grid menerima semua pointer (down → `Begin`, move-ke-sel-baru → `OnDrag` (klamp `TryCell`/`TryCellClamped`) + event `DragCellChanged`, up → `OnPointerUp`/`OnEndDrag`, cancel → `Update()` polling + `CancelDrag`); posisi layar → koordinat sel selalu dibatasi di dalam kisi.
+- ✔ **Butir 2 — hanya pointer pertama**: `Begin: if (_dragging) return` (sentuhan kedua diabaikan sampai drag selesai) + gating `e.pointerId != _dragPointerId` di `OnDrag`/`OnPointerUp`/`OnEndDrag`.
+- ✗→✅ **Butir 3 — tap ≠ waktu, syarat "tak pernah pindah sel"** (SATU-SATUNYA FIX): lama `OnEndDrag` hanya cek `c == _dc0 && r == _dr0` — drag keluar sel lalu kembali ke jangkar terbaca TAP (hapus rect) padahal spec: harus DRAG (commit 1×1 via `Place`, victim dihapus otomatis). Baru flag sticky `_movedAny` — `|= (c != _dc0 || r != _dr0)` per pindah-sel di `OnDrag`, reset di `Begin`, tap hanya `(_dc0,_dr0) && !_movedAny`; tanpa syarat waktu/tahan-lama ✓ (tap "agak lama" tetap tap dikarenakan flag bersifat per-sel, bukan per-waktu).
+- ✔ **Butir 4 — cancel tak mengubah state**: `Update()` deteksi drag-hantu via Input System (`Mouse.leftButton.isPressed` + `primaryTouch.phase ∈ {Began,Moved,Stationary}`, `IPointerCancelHandler` tak ada di UGUI), `OnApplicationFocus(false)` (tab blur), `OnDisable` saat overlay/layar muncul — semua hanya `CancelDrag()` = matikan preview; state `Session` dibiarkan.
+- ✔ **Butir 5 — area input lebih lebar dari grid**: pad `0.4×Cell` (komentar "hit area longgar utk jari") dalam `TryCell`; lepas di luar papan masih terbaca karena `TryCellClamped` (tanpa pad, "menempel ke tepi papan") sebagai fallback di `OnDrag` & `OnEndDrag`.
+- Braces BoardView 45/45; tidak menyentuh Core (verifier 34 cek tetap valid).
