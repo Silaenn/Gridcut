@@ -81,7 +81,14 @@ namespace GridCut.Game
             if (Session == null) return;
             StopAllCoroutines();      // mematikan pulse hint dari level sebelumnya
             _hintCo = null;
-            ClearChildren(_rt);
+            // slot bg/Cells/Dynamic (diproduksi sekali di scene, spec "UI ada di scene")
+            // dipertahankan; sisa kartu clue level sebelumnya dihapus
+            for (int i = _rt.childCount - 1; i >= 0; i--)
+            {
+                var nm = _rt.GetChild(i).name;
+                if (nm != "bg" && nm != "Cells" && nm != "Dynamic")
+                    Destroy(_rt.GetChild(i).gameObject);
+            }
             _rectFill.Clear();
             _neutralFill.Clear();
             _clueText.Clear();
@@ -91,14 +98,36 @@ namespace GridCut.Game
             _rt.sizeDelta = new Vector2(bw, bh);
 
             // papan = Rounded warna Papan, radius 48 (56/1.17) + bayangan (0,-16)
-            var bg = UiFactory.Panel(_rt, "bg", ThemeApplier.ColorOf(ThemeApplier.Role.Board),
-                false, AppRoot.Instance != null ? AppRoot.Instance.Rounded : null, 1.17f);
-            // padding 28: papan melebar simetris di sekeliling rect kisi
-            bg.rectTransform.offsetMin = new Vector2(-Pad, -Pad);
-            bg.rectTransform.offsetMax = new Vector2(Pad, Pad);
-            UiFactory.ApplyShadow(bg, new Vector2(0f, -16f), ThemeApplier.ColorOf(ThemeApplier.Role.Board));
+            Image bg;
+            var bgT = _rt.Find("bg");
+            if (bgT != null)
+                bg = bgT.GetComponent<Image>();   // slot bake scene — cukup re-tint tiap rebuild
+            else
+            {
+                bg = UiFactory.Panel(_rt, "bg", Color.white,
+                    false, AppRoot.Instance != null ? AppRoot.Instance.Rounded : null, 1.17f);
+                // padding 28: papan melebar simetris di sekeliling rect kisi
+                bg.rectTransform.offsetMin = new Vector2(-Pad, -Pad);
+                bg.rectTransform.offsetMax = new Vector2(Pad, Pad);
+            }
+            bg.color = ThemeApplier.ColorOf(ThemeApplier.Role.Board);
+            // bayangan = versi gelap warna Papan (ShadowOf, masuk pattern "bayangan Aksen")
+            UiFactory.ApplyShadow(bg, new Vector2(0f, -16f),
+                ThemeApplier.ShadowOf(ThemeApplier.ColorOf(ThemeApplier.Role.Board)));
 
-            // sel grid = tile Rounded warna Permukaan, radius 20 (56/2.8), jarak antar sel 8 px
+            // sel grid = tile Rounded warna Permukaan, radius 20 (56/2.8), jarak antar sel 8 px;
+            // hidup di kontainer "Cells" (slot bake scene) agar tak ikut dihapus tiap rebuild
+            var cellsT = _rt.Find("Cells");
+            if (cellsT == null)
+            {
+                var cellsGo = new GameObject("Cells", typeof(RectTransform));
+                cellsGo.transform.SetParent(_rt, false);
+                var csrt = (RectTransform)cellsGo.transform;
+                csrt.anchorMin = Vector2.zero; csrt.anchorMax = Vector2.one;
+                csrt.offsetMin = Vector2.zero; csrt.offsetMax = Vector2.zero;
+                cellsT = csrt;
+            }
+            ClearChildren(cellsT);
             var rounded = AppRoot.Instance != null ? AppRoot.Instance.Rounded : null;
             var cellColor = ThemeApplier.ColorOf(ThemeApplier.Role.CellEmpty);
             // Fredoka-Bold untuk angka clue & angka luas preview (spesifikasi font)
@@ -106,7 +135,7 @@ namespace GridCut.Game
             for (int r = 0; r < Rows; r++)
                 for (int c = 0; c < Cols; c++)
                 {
-                    var img = UiFactory.Image(_rt, $"cell{r}x{c}", cellColor);
+                    var img = UiFactory.Image(cellsT, $"cell{r}x{c}", cellColor);
                     if (rounded != null)
                     {
                         img.sprite = rounded;
@@ -122,12 +151,23 @@ namespace GridCut.Game
             // Sub-canvas terpisah khusus lapisan yang sering berubah (keping, preview,
             // input). Papan, tile sel, dan angka statis tetap di canvas induk —
             // perubahan keping tidak memicu rebuild seluruh Canvas (spec bag. Canvas).
-            // Dibuat tepat di atas tile sel sehingga keping & angka tetap di atasnya.
-            var dynGo = new GameObject("Dynamic", typeof(RectTransform), typeof(Canvas), typeof(GraphicRaycaster));
-            dynGo.transform.SetParent(_rt, false);
-            _dyn = (RectTransform)dynGo.transform;
-            _dyn.anchorMin = Vector2.zero; _dyn.anchorMax = Vector2.one;
-            _dyn.offsetMin = Vector2.zero; _dyn.offsetMax = Vector2.zero;
+            // Slot "Dynamic" hasil bake scene dipakai ulang; isinya dibersihkan tiap
+            // rebuild (keping per clue, preview, input catcher).
+            var dynT = _rt.Find("Dynamic");
+            if (dynT == null)
+            {
+                var dynGo = new GameObject("Dynamic", typeof(RectTransform), typeof(Canvas), typeof(GraphicRaycaster));
+                dynGo.transform.SetParent(_rt, false);
+                var drt = (RectTransform)dynGo.transform;
+                drt.anchorMin = Vector2.zero; drt.anchorMax = Vector2.one;
+                drt.offsetMin = Vector2.zero; drt.offsetMax = Vector2.zero;
+                dynT = dynGo.transform;
+            }
+            else
+            {
+                ClearChildren(dynT);
+            }
+            _dyn = (RectTransform)dynT;
 
             // keping per clue: akar tepi gelap (Rounded radius 32/1.75) + anak
             // "Fill" warna keping (radius 26/2.15, margin 6) — di sub-canvas

@@ -224,7 +224,7 @@ namespace GridCut.Game
             return s;
         }
 
-        /// <summary>Row of three sprite stars (32×32 each — spec bintang di ubin; evenly spaced).</summary>
+        /// <summary>Row of three sprite stars (32×32, jarak antar bintang 8 px — spec).</summary>
         public static RectTransform StarRow(Transform parent, string name)
         {
             var go = new GameObject(name, typeof(RectTransform));
@@ -237,7 +237,7 @@ namespace GridCut.Game
                 irt.SetParent(rt, false);
                 irt.anchorMin = irt.anchorMax = irt.pivot = new Vector2(0.5f, 0.5f);
                 irt.sizeDelta = new Vector2(32f, 32f);
-                irt.anchoredPosition = new Vector2((i - 1) * 48f, 0f);
+                irt.anchoredPosition = new Vector2((i - 1) * 40f, 0f);   // 32 + 8 (jarak spec)
                 var img = imgGo.GetComponent<Image>();
                 img.sprite = StarSprite(true);
                 img.preserveAspect = true;

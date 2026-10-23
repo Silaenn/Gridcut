@@ -395,9 +395,40 @@ namespace GridCut.Game
                 if (_tutorial != null) _tutorial.SetActive(false);
                 return;
             }
+            if (_tutorial == null)
+            {
+                // slot tutorial diam-diam di scene (bake) — ambil bila ada
+                var baked = BoardSlot != null ? BoardSlot.Find("Tutorial") : null;
+                if (baked != null)
+                {
+                    _tutorial = baked.gameObject;
+                    WireBakedTutorial();
+                }
+            }
             if (_tutorial == null) _tutorial = BuildTutorial();
             _tutorial.transform.Find("Card").Find("Body").GetComponent<TMP_Text>().text = TutorialText(_levelId);
             _tutorial.SetActive(true);
+        }
+
+        /// <summary>Sambung tutorial hasil bake scene: klik "Mengerti", tekan
+        /// tombol, dan warna label kontras — struktur statis sudah di scene.</summary>
+        void WireBakedTutorial()
+        {
+            var mBtn = _tutorial.transform.Find("Card/MengertiBtn");
+            if (mBtn == null) return;
+            var b = mBtn.GetComponent<Button>();
+            if (b != null)
+            {
+                b.onClick.AddListener(() =>
+                {
+                    _tutorial.SetActive(false);
+                    AudioService.Play("tap");
+                });
+                UiFactory.PressFx(b, -16f);
+            }
+            var lbl = b != null ? b.GetComponentInChildren<TMP_Text>() : null;
+            if (lbl != null)
+                lbl.color = ThemeApplier.ContrastTextOn(ThemeApplier.ColorOf(ThemeApplier.Role.Accent));
         }
 
         static string TutorialText(int levelId) => levelId switch

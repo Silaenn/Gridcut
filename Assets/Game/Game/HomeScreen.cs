@@ -30,6 +30,9 @@ namespace GridCut.Game
         public TMP_Text ThemeTitle, SettingsTitle;
 
         Action<Color> _textTint, _popupTint, _accentTint, _frameTint;
+        RectTransform _logoRow;             // huruf logo GRIDCUT (dibake runtime)
+        Image[] _logoTiles;                 // [i] = ubin huruf ke-i
+        Action<Color>[] _logoTints;         // langganan warna keping per huruf (Rect i%6)
 
         void Awake()
         {
@@ -96,12 +99,16 @@ namespace GridCut.Game
         {
             RefreshLabels();
             RefreshThemeTint();
+            if (_logoRow == null) BuildLogo();   // sprite Rounded belum siap saat Awake → coba lagi
             // applyImmediately: re-tint from the current theme on every appearance
             ThemeApplier.Subscribe(ThemeApplier.Role.Text, _textTint, true);
             ThemeApplier.Subscribe(ThemeApplier.Role.Accent, _accentTint, true);
             ThemeApplier.Subscribe(ThemeApplier.Role.GridLine, _frameTint, true);
             ThemeApplier.Subscribe(ThemeApplier.Role.CellEmpty, _frameTint, true);
             ThemeApplier.Subscribe(ThemeApplier.Role.CellEmpty, _popupTint, true);
+            if (_logoTints != null)
+                for (int i = 0; i < _logoTints.Length; i++)
+                    ThemeApplier.Subscribe(ThemeApplier.Role.Rect, _logoTints[i], true, i % 6);
         }
 
         void OnDisable()
@@ -110,6 +117,8 @@ namespace GridCut.Game
             ThemeApplier.Unsubscribe(_popupTint);
             ThemeApplier.Unsubscribe(_accentTint);
             ThemeApplier.Unsubscribe(_frameTint);
+            if (_logoTints != null)
+                foreach (var cb in _logoTints) ThemeApplier.Unsubscribe(cb);
             // never revive an overlay when Home reappears
             if (ThemePopup != null) ThemePopup.SetActive(false);
             if (SettingsPopup != null) SettingsPopup.SetActive(false);
@@ -296,6 +305,84 @@ namespace GridCut.Game
                 yield return new WaitForSecondsRealtime(step);
             }
             if (rt != null) rt.anchoredPosition = basePos;
+        }
+
+        // ------------------------------ huruf logo (spec) ------------------------------
+
+        /// <summary>Logo GRIDCUT: tujuh ubin 120×144 (radius 28 → ×2,0) warna keping
+        /// ke-i, bayangan (0,-10) warna tepi keping, huruf TMP Bold 88 auto-kontras,
+        /// rotasi bergantian −3/+3°, jarak antar huruf 16. Menggantikan TMP "Title"
+        /// statis di scene (posisi sama: tepi atas MenuGroup, y −32,4).</summary>
+        void BuildLogo()
+        {
+            var rounded = AppRoot.Instance != null ? AppRoot.Instance.Rounded : null;
+            var bold = AppRoot.Instance != null ? AppRoot.Instance.FontBold : null;
+            var host = transform.Find("MenuGroup");
+            var rowT = host != null ? host.Find("LogoLetters") : null;
+            if (rowT != null)
+            {
+                // huruf sudah bake di scene (truktur statis) — cukup ambil rujukannya
+                _logoRow = (RectTransform)rowT;
+                _logoTiles = new Image[7];
+                for (int i = 0; i < 7; i++)
+                {
+                    var t = _logoRow.Find($"letter{i}");
+                    _logoTiles[i] = t != null ? t.GetComponent<Image>() : null;
+                }
+                return;
+            }
+            if (rounded == null) return;
+
+            string word = "GRIDCUT";
+            _logoTiles = new Image[word.Length];
+            _logoTints = new Action<Color>[word.Length];
+
+            var rowGo = new GameObject("LogoLetters", typeof(RectTransform));
+            _logoRow = (RectTransform)rowGo.transform;
+            _logoRow.SetParent(host != null ? host : transform, false);
+            _logoRow.anchorMin = _logoRow.anchorMax = new Vector2(0.5f, 1f);
+            _logoRow.pivot = new Vector2(0.5f, 1f);
+            _logoRow.anchoredPosition = new Vector2(0f, -32.4f);   // sama dengan TMP Title lama
+            _logoRow.sizeDelta = new Vector2(936f, 144f);          // 7×120 + 6×16
+
+            for (int i = 0; i < word.Length; i++)
+            {
+                var go = new GameObject($"letter{i}", typeof(RectTransform), typeof(Image));
+                var img = go.GetComponent<Image>();
+                img.raycastTarget = false;
+                _logoTiles[i] = img;
+                var tile = (RectTransform)go.transform;
+                tile.SetParent(_logoRow, false);
+                tile.anchorMin = tile.anchorMax = new Vector2(0.5f, 0.5f);
+                tile.sizeDelta = new Vector2(120f, 144f);
+                tile.anchoredPosition = new Vector2(-408f + i * 136f, 0f);
+                tile.localRotation = Quaternion.Euler(0f, 0f, i % 2 == 0 ? -3f : 3f);
+                img.sprite = rounded;
+                img.type = UnityEngine.UI.Image.Type.Sliced;
+                img.pixelsPerUnitMultiplier = 2f;                  // radius 28 (56/2)
+
+                var t = UiFactory.Text(tile, "glyph", word[i].ToString(), 88f, null,
+                    TextAlignmentOptions.Center);
+                if (bold != null) t.font = bold;
+                t.rectTransform.anchorMin = t.rectTransform.anchorMax = new Vector2(0.5f, 0.5f);
+                t.rectTransform.sizeDelta = new Vector2(104f, 104f);
+                t.rectTransform.anchoredPosition = Vector2.zero;
+
+                int li = i;
+                _logoTints[i] = _ => LogoTint(li);
+            }
+        }
+
+        /// <summary>Warna ubin huruf ke-i mengikuti tema: warna keping i (Rect i%6),
+        /// bayangan versi gelapnya, huruf auto-kontras di atasnya.</summary>
+        void LogoTint(int i)
+        {
+            if (_logoTiles == null || i >= _logoTiles.Length || _logoTiles[i] == null) return;
+            var c = ThemeApplier.ColorOf(ThemeApplier.Role.Rect, i % 6);
+            _logoTiles[i].color = c;
+            UiFactory.ApplyShadow(_logoTiles[i], new Vector2(0f, -10f), ThemeApplier.ShadowOf(c));
+            var glyph = _logoTiles[i].GetComponentInChildren<TMP_Text>(true);
+            if (glyph != null) glyph.color = ThemeApplier.ContrastTextOn(c);
         }
 
         public void Show()

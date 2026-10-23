@@ -11,11 +11,12 @@ namespace GridCut.Game
     /// </summary>
     public static class ThemeApplier
     {
-        public enum Role { Background, CellEmpty, GridLine, Text, Accent, Board, Rect }
+        public enum Role { Background, CellEmpty, GridLine, Text, Accent, Board, Locked, Lock, Rect }
 
         public static ThemeLibrary.Theme Current { get; private set; } = ThemeLibrary.Paper;
 
-        static readonly List<(Role role, Action<Color> cb)> _subscribers = new List<(Role, Action<Color>)>();
+        static readonly List<(Role role, int rectIndex, Action<Color> cb)> _subscribers =
+            new List<(Role, int, Action<Color>)>();
 
 #if UNITY_EDITOR
         // Play-mode without domain reload keeps statics across sessions; stale
@@ -34,27 +35,30 @@ namespace GridCut.Game
                 Role.Text => Parse(Current.Text),
                 Role.Accent => Parse(Current.Accent),
                 Role.Board => Parse(Current.Board),
+                Role.Locked => Parse(Current.Locked),
+                Role.Lock => Parse(Current.Lock),
                 Role.Rect => Parse(Current.Rects[Mathf.Clamp(rectIndex, 0, Current.Rects.Length - 1)]),
                 _ => Color.white,
             };
         }
 
-        public static void Subscribe(Role role, Action<Color> updater, bool applyImmediately) 
+        public static void Subscribe(Role role, Action<Color> updater, bool applyImmediately,
+            int rectIndex = 0)
         {
             // idempotent: screens re-subscribe on every enable; never stack duplicates,
-            // and an updater moved to another role drops its stale entry
+            // and an updater moved to another role/index drops its stale entry
             for (int i = _subscribers.Count - 1; i >= 0; i--)
             {
                 if (_subscribers[i].cb != updater) continue;
-                if (_subscribers[i].role == role)
+                if (_subscribers[i].role == role && _subscribers[i].rectIndex == rectIndex)
                 {
-                    if (applyImmediately) updater(ColorOf(role));
+                    if (applyImmediately) updater(ColorOf(role, rectIndex));
                     return;
                 }
                 _subscribers.RemoveAt(i);
             }
-            _subscribers.Add((role, updater));
-            if (applyImmediately) updater(ColorOf(role));
+            _subscribers.Add((role, rectIndex, updater));
+            if (applyImmediately) updater(ColorOf(role, rectIndex));
         }
 
         public static void Unsubscribe(Action<Color> updater)
@@ -67,14 +71,14 @@ namespace GridCut.Game
         {
             SaveStore.SetTheme(themeIndex);
             Current = ThemeLibrary.All[themeIndex];
-            foreach (var (role, cb) in _subscribers) cb(ColorOf(role));
+            foreach (var (role, rectIndex, cb) in _subscribers) cb(ColorOf(role, rectIndex));
         }
 
         /// <summary>Applies the stored selection without re-saving (boot path).</summary>
         public static void ApplySaved()
         {
             Current = ThemeLibrary.All[Mathf.Clamp(SaveStore.ThemeIndex, 0, ThemeLibrary.All.Length - 1)];
-            foreach (var (role, cb) in _subscribers) cb(ColorOf(role));
+            foreach (var (role, rectIndex, cb) in _subscribers) cb(ColorOf(role, rectIndex));
         }
 
         /// <summary>Warna bayangan dari warna dasar: HSV V×0,85 dan S+0,12
