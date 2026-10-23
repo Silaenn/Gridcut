@@ -49,6 +49,7 @@ namespace GridCut.Game
         int _dc0, _dr0, _dc1, _dr1;
         bool _movedAny;   // spec bag.5: tap = naik di sel jangkar DAN tak pernah pindah sel
         RectTransform _slot;
+        RectTransform _dyn;   // sub-canvas: keping, preview, input (lapisan dinamis per spec)
 
         void Awake() => _rt = (RectTransform)transform;
 
@@ -84,12 +85,22 @@ namespace GridCut.Game
             // background and cell area
             var bg = UiFactory.Panel(_rt, "bg", ThemeApplier.ColorOf(ThemeApplier.Role.CellEmpty));
 
+            // Sub-canvas terpisah khusus lapisan yang sering berubah (keping, preview,
+            // input). Papan, garis kisi, dan angka statis tetap di canvas induk —
+            // perubahan keping tidak memicu rebuild seluruh Canvas (spec bag. Canvas).
+            // Dibuat tepat di atas bg sehingga garis & angka tetap tergambar di atasnya.
+            var dynGo = new GameObject("Dynamic", typeof(RectTransform), typeof(Canvas), typeof(GraphicRaycaster));
+            dynGo.transform.SetParent(_rt, false);
+            _dyn = (RectTransform)dynGo.transform;
+            _dyn.anchorMin = Vector2.zero; _dyn.anchorMax = Vector2.one;
+            _dyn.offsetMin = Vector2.zero; _dyn.offsetMax = Vector2.zero;
+
             // rect fills (one child per clue; enabled state mirrors Placed)
             for (int ci = 0; ci < Session.ClueCount; ci++)
             {
                 var go = new GameObject($"fill{ci}", typeof(RectTransform), typeof(Image));
                 var img = go.GetComponent<Image>();
-                go.transform.SetParent(_rt, false);
+                go.transform.SetParent(_dyn, false);
                 img.raycastTarget = false;
                 img.enabled = false;
                 _rectFill.Add(img);
@@ -120,7 +131,7 @@ namespace GridCut.Game
             // preview rect (on top of fills, below nothing yet)
             var pgo = new GameObject("preview", typeof(RectTransform), typeof(Image));
             _preview = pgo.GetComponent<Image>();
-            pgo.transform.SetParent(_rt, false);
+            pgo.transform.SetParent(_dyn, false);
             _preview.raycastTarget = false;
             _preview.enabled = false;
 
@@ -129,7 +140,7 @@ namespace GridCut.Game
             var ii = igo.GetComponent<Image>();
             ii.color = Color.clear;
             ii.raycastTarget = true;
-            igo.transform.SetParent(_rt, false);
+            igo.transform.SetParent(_dyn, false);
             var irt = (RectTransform)igo.transform;
             irt.anchorMin = Vector2.zero; irt.anchorMax = Vector2.one;
             irt.offsetMin = Vector2.zero; irt.offsetMax = Vector2.zero;
@@ -204,16 +215,15 @@ namespace GridCut.Game
 
         /// <summary>Pool fill netral: rect tak valid tidak punya owner clue, jadi
         /// tidak memetakan ke fill per-clue — pakai Image generik yang dibuat
-        /// sesuai kebutuhan. Sibling index 1 = tepat di atas bg (angka &amp; garis
-        /// kisi tetap terbaca di atasnya).</summary>
+        /// sesuai kebutuhan. Hidup di sub-canvas Dynamic; angka & garis kisi tetap
+        /// di canvas induk dan tergambar di atasnya.</summary>
         Image NeutralFill(int n)
         {
             if (n < _neutralFill.Count && _neutralFill[n] != null) return _neutralFill[n];
             var go = new GameObject("fillNeutral", typeof(RectTransform), typeof(Image));
             var img = go.GetComponent<Image>();
             img.raycastTarget = false;
-            go.transform.SetParent(_rt, false);
-            go.transform.SetSiblingIndex(1);   // bg selalu index 0 (dibuat pertama di Rebuild)
+            go.transform.SetParent(_dyn, false);
             if (n < _neutralFill.Count) _neutralFill[n] = img; else _neutralFill.Add(img);
             return img;
         }
@@ -374,6 +384,7 @@ namespace GridCut.Game
                 c.a = 0.4f;
                 _preview.color = c;
             }
+            _preview.transform.SetAsLastSibling();   // fill netral belakangan jangan menutupi preview
             _preview.enabled = true;
             FitPreview(rect);
         }

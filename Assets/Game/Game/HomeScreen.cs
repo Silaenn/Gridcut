@@ -26,7 +26,7 @@ namespace GridCut.Game
         public GameObject ThemePopup;      // Dim + Card + 5 swatch + Tutup
         public GameObject SettingsPopup;   // Dim + Card + Suara / Reset Progres / Tutup
         public Button ThemeCloseBtn, SettingsSoundBtn, SettingsResetBtn, SettingsCloseBtn;
-        public Image MuteIcon, MuteIconOff, GearIcon, ThemeCard, SettingsCard;   // sprite ikon dari Assets/Game/UI/Icons
+        public Image MuteIcon, MuteIconOff, GearIcon, ThemeCard, SettingsCard;   // sprite ikon Kenney di Assets/Game/UI
         public TMP_Text ThemeTitle, SettingsTitle;
 
         Action<Color> _textTint, _popupTint;
@@ -94,6 +94,8 @@ namespace GridCut.Game
             // never revive an overlay when Home reappears
             if (ThemePopup != null) ThemePopup.SetActive(false);
             if (SettingsPopup != null) SettingsPopup.SetActive(false);
+            // ConfirmReset kini di root Overlay (spec) — tidak ikut mati bersama Home
+            if (ConfirmDialog != null && ConfirmDialog.activeSelf) ConfirmDialog.SetActive(false);
         }
 
         /// <summary>Recovers scene refs by child name when serialized wiring fails.</summary>

@@ -100,8 +100,8 @@ namespace GridCut.Game
         // procedurally once and shown as Images so progress reads the same everywhere.
 
         // ------------------------------ shared sprites ------------------------------
-        // Stars and the padlock are PNG assets under Assets/Game/UI/Icons (wired on
-        // AppRoot in the scene) — no runtime rasterization.
+        // Ikon Kenney (putih-alpha, 128x128, Assets/Game/UI) wired di AppRoot scene —
+        // bintang/gembok untuk sel level; tanpa rasterisasi runtime.
 
         /// <summary>Sprite from AppRoot's serialized refs; warns when the scene wiring is missing.</summary>
         public static Sprite StarSprite(bool full)
@@ -112,7 +112,7 @@ namespace GridCut.Game
             return s;
         }
 
-        /// <summary>Row of three sprite stars (36×36 each, evenly spaced).</summary>
+        /// <summary>Row of three sprite stars (32×32 each — spec bintang di ubin; evenly spaced).</summary>
         public static RectTransform StarRow(Transform parent, string name)
         {
             var go = new GameObject(name, typeof(RectTransform));
@@ -124,7 +124,7 @@ namespace GridCut.Game
                 var irt = (RectTransform)imgGo.transform;
                 irt.SetParent(rt, false);
                 irt.anchorMin = irt.anchorMax = irt.pivot = new Vector2(0.5f, 0.5f);
-                irt.sizeDelta = new Vector2(36f, 36f);
+                irt.sizeDelta = new Vector2(32f, 32f);
                 irt.anchoredPosition = new Vector2((i - 1) * 48f, 0f);
                 var img = imgGo.GetComponent<Image>();
                 img.sprite = StarSprite(true);

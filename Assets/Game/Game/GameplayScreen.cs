@@ -91,6 +91,9 @@ namespace GridCut.Game
             ThemeApplier.Unsubscribe(_boardTint);
             // spec: gameplay disembunyikan membuang state input (drag yang berjalan)
             if (Board != null) Board.ClearPreview();
+            // WinOverlay tinggal di root Overlay (spec lapisan overlay), bukan anak
+            // Gameplay lagi — matikan manual agar tidak ikut ke layar sebelumnya.
+            if (WinOverlay != null && WinOverlay.activeSelf) WinOverlay.SetActive(false);
         }
 
         /// <summary>Recovers scene refs by child name when serialized wiring fails.</summary>

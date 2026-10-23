@@ -103,9 +103,8 @@ namespace GridCut.Game
                 row.anchorMin = new Vector2(0f, 0.02f);
                 row.anchorMax = new Vector2(1f, 0.28f);
                 row.offsetMin = Vector2.zero; row.offsetMax = Vector2.zero;
-                // sprite PNG sudah berwarna (putih alpha) — warna Image tidak diubah;
-                // status penuh/kosong dibedakan oleh bentuk sprite, bukan warna
-                UiFactory.SetStars(row, SaveStore.BestStars(id), Color.white, Color.white);
+                // sprite bintang Kenney putih-alpha: penuh = putih, kosong = diredam warna
+                UiFactory.SetStars(row, SaveStore.BestStars(id), Color.white, new Color(1f, 1f, 1f, 0.24f));
 
                 if (unlocked)
                 {
@@ -125,7 +124,7 @@ namespace GridCut.Game
                 lockImg.preserveAspect = true;
                 var lrt = (RectTransform)lockImg.transform;
                 lrt.anchorMin = lrt.anchorMax = new Vector2(0.5f, 0.5f);
-                lrt.sizeDelta = new Vector2(96f, 96f);
+                lrt.sizeDelta = new Vector2(64f, 64f);   // spec: gembok tampil 64x64 di ubin
                 lrt.anchoredPosition = new Vector2(0f, 22f);
 
                 var cellRt = (RectTransform)b.transform;
