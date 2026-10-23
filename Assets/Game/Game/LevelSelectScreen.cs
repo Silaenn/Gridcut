@@ -21,7 +21,7 @@ namespace GridCut.Game
 
         int _page;
         const int PerPage = 15;             // spec: kisi 5 x 3
-        Action<Color> _textTint;
+        Action<Color> _textTint, _frameTint;
 
         void Awake()
         {
@@ -36,15 +36,31 @@ namespace GridCut.Game
                 if (PrevIcon != null) PrevIcon.color = c;
                 if (NextIcon != null) NextIcon.color = c;
             };
+            _frameTint = _ =>
+            {
+                UiFactory.FrameTint(PrevBtn, true);
+                UiFactory.FrameTint(NextBtn, true);
+                UiFactory.FrameTint(BackBtn, true);
+            };
+            // keadaan tombol (spec): tekan-turun + alpha nonaktif
+            UiFactory.PressFx(PrevBtn, -12f);
+            UiFactory.PressFx(NextBtn, -12f);
+            UiFactory.PressFx(BackBtn, -12f);
         }
 
         void OnEnable()
         {
             // applyImmediately re-tints PageLabel from the current theme on appearance
             ThemeApplier.Subscribe(ThemeApplier.Role.Text, _textTint, true);
+            ThemeApplier.Subscribe(ThemeApplier.Role.GridLine, _frameTint, true);
+            ThemeApplier.Subscribe(ThemeApplier.Role.CellEmpty, _frameTint, true);
         }
 
-        void OnDisable() => ThemeApplier.Unsubscribe(_textTint);
+        void OnDisable()
+        {
+            ThemeApplier.Unsubscribe(_textTint);
+            ThemeApplier.Unsubscribe(_frameTint);
+        }
 
         /// <summary>Recovers scene refs by child name when serialized wiring fails.</summary>
         void AutoWire()

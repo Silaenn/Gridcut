@@ -114,6 +114,99 @@ namespace GridCut.Game
             return btn;
         }
 
+        // ------------------------------ shadow & tombol utama ------------------------------
+        /// <summary>Shadow bawaan UI "tombol tebal": satu komponen, tanpa objek
+        /// tambahan; Use Graphic Alpha dimatikan sesuai spec.</summary>
+        public static void ApplyShadow(Component host, Vector2 distance, Color color)
+        {
+            var sh = host.GetComponent<Shadow>();
+            if (sh == null) sh = host.gameObject.AddComponent<Shadow>();
+            sh.effectColor = color;
+            sh.effectDistance = distance;
+            sh.useGraphicAlpha = false;
+        }
+
+        /// <summary>Resep tombol utama: latar warna Utama (Accent), bayangan tebal
+        /// (0, -shadowDy), label auto-kontras gelap/putih; tanpa bingkai.</summary>
+        public static void PrimaryTint(Button b, float shadowDy)
+        {
+            if (b == null) return;
+            var accent = ThemeApplier.ColorOf(ThemeApplier.Role.Accent);
+            var img = b.GetComponent<Image>();
+            if (img != null) img.color = accent;
+            ApplyShadow(b.transform, new Vector2(0f, shadowDy), ThemeApplier.ShadowOf(accent));
+            var lbl = b.GetComponentInChildren<TMP_Text>(true);
+            if (lbl != null) lbl.color = ThemeApplier.ContrastTextOn(accent);
+        }
+
+        /// <summary>Kerangka tombol sekunder/ikon: akar warna Tepi (GridLine) +
+        /// bayangan (0,-12); anak "Fill" warna Permukaan (CellEmpty); pada layout
+        /// ikon, gambar anak selain Fill diwarnai Teks.</summary>
+        public static void FrameTint(Button b, bool circleIcons)
+        {
+            if (b == null) return;
+            var edge = ThemeApplier.ColorOf(ThemeApplier.Role.GridLine);
+            var img = b.GetComponent<Image>();
+            if (img != null) img.color = edge;
+            ApplyShadow(b.transform, new Vector2(0f, -12f), edge);
+            foreach (Transform child in b.transform)
+            {
+                var gi = child.GetComponent<Image>();
+                if (gi == null) continue;
+                if (child.name == "Fill")
+                    gi.color = ThemeApplier.ColorOf(ThemeApplier.Role.CellEmpty);
+                else if (circleIcons)
+                    gi.color = ThemeApplier.ColorOf(ThemeApplier.Role.Text);
+            }
+        }
+
+        /// <summary>Kartu: akar warna Tepi (GridLine) + bayangan (0,-12); anak "Fill"
+        /// warna Permukaan (CellEmpty).</summary>
+        public static void CardTint(Component card)
+        {
+            if (card == null) return;
+            var edge = ThemeApplier.ColorOf(ThemeApplier.Role.GridLine);
+            var img = card.GetComponent<Image>();
+            if (img != null) img.color = edge;
+            ApplyShadow(card.transform, new Vector2(0f, -12f), edge);
+            var fill = card.transform.Find("Fill");
+            if (fill != null)
+            {
+                var fi = fill.GetComponent<Image>();
+                if (fi != null) fi.color = ThemeApplier.ColorOf(ThemeApplier.Role.CellEmpty);
+            }
+        }
+
+        /// <summary>Keadaan tombol: ditekan turun (|dy| - 4) px & bayangan menyusut ke -4
+        /// dalam 100 ms; nonaktif = CanvasGroup alpha 0,45 (dikerjakan ButtonFX). Tombol
+        /// yang jadi anak langsung LayoutGroup dibungkus "PressSeat" agar offset tekan
+        /// tidak ditimpa layout.</summary>
+        public static void PressFx(Button b, float shadowDy)
+        {
+            if (b == null) return;
+            var host = (RectTransform)b.transform;
+            var pr = host.parent as RectTransform;
+            if (pr != null && pr.GetComponent<LayoutGroup>() != null && pr.name != "PressSeat")
+            {
+                var seatGo = new GameObject("PressSeat", typeof(RectTransform));
+                seatGo.layer = host.gameObject.layer;
+                var seat = (RectTransform)seatGo.transform;
+                seat.SetParent(pr, false);
+                seat.anchorMin = host.anchorMin;
+                seat.anchorMax = host.anchorMax;
+                seat.pivot = host.pivot;
+                seat.anchoredPosition = host.anchoredPosition;
+                seat.sizeDelta = host.sizeDelta;
+                host.SetParent(seat, false);
+                host.anchorMin = new Vector2(0.5f, 0.5f);
+                host.anchorMax = new Vector2(0.5f, 0.5f);
+                host.anchoredPosition = Vector2.zero;
+            }
+            var fx = b.GetComponent<ButtonFX>();
+            if (fx == null) fx = b.gameObject.AddComponent<ButtonFX>();
+            fx.ShadowDy = shadowDy;
+        }
+
         // ----------------------------- star sprites -----------------------------
         // LiberationSans SDF (TMP essentials) has no ★/☆ glyphs; stars are rasterized
         // procedurally once and shown as Images so progress reads the same everywhere.

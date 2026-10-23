@@ -12,10 +12,10 @@ using TouchPhase = UnityEngine.InputSystem.TouchPhase;
 namespace GridCut.Game
 {
     /// <summary>
-    /// Renders a puzzle board (background, grid lines, clue labels, placed-rect fills)
-    /// and handles pointer → cell input with a grid-snapped preview. The whole
-    /// board rebuilds on level start and on screen resize; puzzles are small enough
-    /// (max 14x8 cells) that rebuilds are effectively free.
+    /// Renders a puzzle board (slab papan Rounded, tile sel Permukaan, clue labels,
+    /// placed-rect fills) and handles pointer → cell input with a grid-snapped
+    /// preview. The whole board rebuilds on level start and on screen resize;
+    /// puzzles are small enough (max 14x8 cells) that rebuilds are effectively free.
     /// </summary>
     public class BoardView : MonoBehaviour, IPointerDownHandler, IDragHandler, IEndDragHandler, IPointerUpHandler
     {
@@ -32,14 +32,22 @@ namespace GridCut.Game
         public const float Ref = 1.35f;
         const float MaxCell = 150f * Ref;   // spec: cells never exceed 150 reference
         const float Margin = 48f * Ref;     // spec: 48 reference inset around the grid area
+        // spec papan/sel — nilai px mengikuti radius (unit canvas, tanpa faktor Ref)
+        const float Pad = 28f;              // padding sekeliling kisi di dalam papan
+        const float Gap = 8f;               // jarak antar sel
+        const float PieceInset = 6f;        // gabungan tile sel → akar keping (celah antar keping 8+6+6)
+        const float FrameMargin = 6f;       // margin anak "Fill" di dalam akar keping
 
         /// <summary>Single source for cell sizing (spec margins + cap); shared with the compact-panel check.</summary>
         public static float EstimateCell(float slotW, float slotH, int cols, int rows) =>
             Mathf.Min(MaxCell, Mathf.Min((slotW - Margin * 2f) / cols, (slotH - Margin * 2f) / rows));
 
         RectTransform _rt;
-        Image _preview;
-        List<Image> _rectFill = new List<Image>(64);          // per clue fill image (valid)
+        RectTransform _previewRt;   // preview drag: Fill + Ring + angka luas
+        Image _pFill;
+        Image _pRing;
+        TMP_Text _pNum;
+        List<Image> _rectFill = new List<Image>(64);          // akar keping per clue (valid)
         List<Image> _neutralFill = new List<Image>(64);       // fill rect netral (spec 18)
         List<TMP_Text> _clueText = new List<TMP_Text>(64);    // per clue label (pulse hint)
         Coroutine _hintCo;
@@ -82,45 +90,59 @@ namespace GridCut.Game
             float bw = Cols * Cell, bh = Rows * Cell;
             _rt.sizeDelta = new Vector2(bw, bh);
 
-            // background and cell area — papan = Rounded 9-slice radius 48 (56/1.17)
-            var bg = UiFactory.Panel(_rt, "bg", ThemeApplier.ColorOf(ThemeApplier.Role.CellEmpty),
+            // papan = Rounded warna Papan, radius 48 (56/1.17) + bayangan (0,-16)
+            var bg = UiFactory.Panel(_rt, "bg", ThemeApplier.ColorOf(ThemeApplier.Role.Board),
                 false, AppRoot.Instance != null ? AppRoot.Instance.Rounded : null, 1.17f);
+            // padding 28: papan melebar simetris di sekeliling rect kisi
+            bg.rectTransform.offsetMin = new Vector2(-Pad, -Pad);
+            bg.rectTransform.offsetMax = new Vector2(Pad, Pad);
+            UiFactory.ApplyShadow(bg, new Vector2(0f, -16f), ThemeApplier.ColorOf(ThemeApplier.Role.Board));
+
+            // sel grid = tile Rounded warna Permukaan, radius 20 (56/2.8), jarak antar sel 8 px
+            var rounded = AppRoot.Instance != null ? AppRoot.Instance.Rounded : null;
+            var cellColor = ThemeApplier.ColorOf(ThemeApplier.Role.CellEmpty);
+            // Fredoka-Bold untuk angka clue & angka luas preview (spesifikasi font)
+            var bold = AppRoot.Instance != null ? AppRoot.Instance.FontBold : null;
+            for (int r = 0; r < Rows; r++)
+                for (int c = 0; c < Cols; c++)
+                {
+                    var img = UiFactory.Image(_rt, $"cell{r}x{c}", cellColor);
+                    if (rounded != null)
+                    {
+                        img.sprite = rounded;
+                        img.type = UnityEngine.UI.Image.Type.Sliced;
+                        img.pixelsPerUnitMultiplier = 2.8f;
+                    }
+                    var crt = img.rectTransform;
+                    crt.anchorMin = crt.anchorMax = new Vector2(0.5f, 0.5f);
+                    crt.sizeDelta = new Vector2(Cell - Gap, Cell - Gap);
+                    crt.anchoredPosition = CellCenter(c, r);
+                }
 
             // Sub-canvas terpisah khusus lapisan yang sering berubah (keping, preview,
-            // input). Papan, garis kisi, dan angka statis tetap di canvas induk —
+            // input). Papan, tile sel, dan angka statis tetap di canvas induk —
             // perubahan keping tidak memicu rebuild seluruh Canvas (spec bag. Canvas).
-            // Dibuat tepat di atas bg sehingga garis & angka tetap tergambar di atasnya.
+            // Dibuat tepat di atas tile sel sehingga keping & angka tetap di atasnya.
             var dynGo = new GameObject("Dynamic", typeof(RectTransform), typeof(Canvas), typeof(GraphicRaycaster));
             dynGo.transform.SetParent(_rt, false);
             _dyn = (RectTransform)dynGo.transform;
             _dyn.anchorMin = Vector2.zero; _dyn.anchorMax = Vector2.one;
             _dyn.offsetMin = Vector2.zero; _dyn.offsetMax = Vector2.zero;
 
-            // rect fills (one child per clue; enabled state mirrors Placed)
+            // keping per clue: akar tepi gelap (Rounded radius 32/1.75) + anak
+            // "Fill" warna keping (radius 26/2.15, margin 6) — di sub-canvas
+            // Dynamic, di atas tile sel
             for (int ci = 0; ci < Session.ClueCount; ci++)
             {
                 var go = new GameObject($"fill{ci}", typeof(RectTransform), typeof(Image));
                 var img = go.GetComponent<Image>();
-                // sel grid/fill papan = Rounded Sliced radius 20 (56/2.8) — tabel resep komponen
-                var rounded = AppRoot.Instance != null ? AppRoot.Instance.Rounded : null;
-                if (rounded != null)
-                {
-                    img.sprite = rounded;
-                    img.type = Image.Type.Sliced;
-                    img.pixelsPerUnitMultiplier = 2.8f;
-                }
+                MakePieceRoot(img);
                 go.transform.SetParent(_dyn, false);
+                MakePieceFill(img);
                 img.raycastTarget = false;
-                img.enabled = false;
+                img.gameObject.SetActive(false);
                 _rectFill.Add(img);
             }
-
-            // grid lines
-            var lineColor = ThemeApplier.ColorOf(ThemeApplier.Role.GridLine);
-            for (int c = 0; c <= Cols; c++)
-                Line($"v{c}", lineColor, new Vector2(2f * Ref, bh), new Vector2(-bw / 2f + c * Cell, 0f));
-            for (int r = 0; r <= Rows; r++)
-                Line($"h{r}", lineColor, new Vector2(bw, 2f * Ref), new Vector2(0f, -bh / 2f + r * Cell));
 
             // clue labels
             var tc = ThemeApplier.ColorOf(ThemeApplier.Role.Text);
@@ -131,7 +153,6 @@ namespace GridCut.Game
                     Mathf.Clamp(Mathf.RoundToInt(Cell * 0.5f), Mathf.RoundToInt(36f * Ref), Mathf.RoundToInt(72f * Ref)),
                     tc, TMPro.TextAlignmentOptions.Center);
                 // angka clue = font Fredoka-Bold (spesifikasi pemakaian font)
-                var bold = AppRoot.Instance != null ? AppRoot.Instance.FontBold : null;
                 if (bold != null) t.font = bold;
                 var rt = t.rectTransform;
                 rt.anchorMin = rt.anchorMax = new Vector2(0.5f, 0.5f);
@@ -140,22 +161,30 @@ namespace GridCut.Game
                 _clueText.Add(t);
             }
 
-            // preview rect (on top of fills, below nothing yet)
-            var pgo = new GameObject("preview", typeof(RectTransform), typeof(Image));
-            _preview = pgo.GetComponent<Image>();
+            // preview drag: dua Image di rect sama — "Fill" Rounded aksen α0,3
+            // (radius 32/1.75) dan "Ring" RoundedRing aksen; angka luas TMP Bold
+            // 88 warna Teks di tengah
+            var pgo = new GameObject("preview", typeof(RectTransform));
             pgo.transform.SetParent(_dyn, false);
-            // garis tepi preview = RoundedRing (cincin 10px), Sliced tanpa fill center,
-            // multiplier 1.75 → ketebalan di layar ≈ 6 px (10/1.75)
+            _previewRt = (RectTransform)pgo.transform;
+            _pFill = UiFactory.Image(pgo.transform, "Fill", Color.clear);
+            MakePieceRoot(_pFill);
+            _pRing = UiFactory.Image(pgo.transform, "Ring", Color.clear);
+            // cincin 10px tanpa fill center; multiplier 1.75 → tebal ≈ 6 px di layar
             var ring = AppRoot.Instance != null ? AppRoot.Instance.RoundedRing : null;
             if (ring != null)
             {
-                _preview.sprite = ring;
-                _preview.type = Image.Type.Sliced;
-                _preview.fillCenter = false;
-                _preview.pixelsPerUnitMultiplier = 1.75f;
+                _pRing.sprite = ring;
+                _pRing.type = Image.Type.Sliced;
+                _pRing.fillCenter = false;
+                _pRing.pixelsPerUnitMultiplier = 1.75f;
             }
-            _preview.raycastTarget = false;
-            _preview.enabled = false;
+            _pNum = UiFactory.Text(pgo.transform, "Num", "0", 88f, null, TextAlignmentOptions.Center);
+            if (bold != null) _pNum.font = bold;
+            var nrt = _pNum.rectTransform;
+            nrt.anchorMin = Vector2.zero; nrt.anchorMax = Vector2.one;
+            nrt.offsetMin = Vector2.zero; nrt.offsetMax = Vector2.zero;
+            pgo.SetActive(false);
 
             // input catcher full board
             var igo = new GameObject("input", typeof(RectTransform), typeof(Image));
@@ -170,15 +199,6 @@ namespace GridCut.Game
             proxy.Owner = this;
 
             ShowPlaced();
-        }
-
-        void Line(string name, Color c, Vector2 size, Vector2 pos)
-        {
-            var img = UiFactory.Image(_rt, name, c);
-            var rt = img.rectTransform;
-            rt.anchorMin = rt.anchorMax = new Vector2(0.5f, 0.5f);
-            rt.sizeDelta = size;
-            rt.anchoredPosition = pos;
         }
 
         Vector2 CellCenter(int col, int row) =>
@@ -196,7 +216,7 @@ namespace GridCut.Game
         public void ShowPlaced()
         {
             for (int ci = 0; ci < Session.ClueCount; ci++)
-                if (ci < _rectFill.Count && _rectFill[ci] != null) _rectFill[ci].enabled = false;
+                if (ci < _rectFill.Count && _rectFill[ci] != null) _rectFill[ci].gameObject.SetActive(false);
 
             int neutralUsed = 0;
             for (int i = 0; i < Session.Placed.Count; i++)
@@ -206,52 +226,109 @@ namespace GridCut.Game
                 Image img;
                 if (owner >= 0 && owner < _rectFill.Count && _rectFill[owner] != null)
                 {
+                    // keping valid: akar = tepi keping (gelap), Fill = warna keping
                     var rc = ThemeApplier.ColorOf(ThemeApplier.Role.Rect, Session.Puzzle.Clues[owner].ColorIndex);
                     img = _rectFill[owner];
-                    img.color = new Color(rc.r, rc.g, rc.b, 0.92f);
+                    TintPiece(img, ThemeApplier.ShadowOf(rc), rc);
                 }
                 else
                 {
                     img = NeutralFill(neutralUsed++);   // spec 18: rect tak valid tampil netral
-                    var c = ThemeApplier.ColorOf(ThemeApplier.Role.GridLine);
-                    c.a = 0.55f;
-                    img.color = c;
+                    var gl = ThemeApplier.ColorOf(ThemeApplier.Role.GridLine);
+                    TintPiece(img, new Color(gl.r, gl.g, gl.b, 0.45f), new Color(gl.r, gl.g, gl.b, 0.55f));
                 }
                 PlaceFillGeometry(img, rect);
-                img.enabled = true;
+                img.gameObject.SetActive(true);
             }
             for (int n = neutralUsed; n < _neutralFill.Count; n++)
-                if (_neutralFill[n] != null) _neutralFill[n].enabled = false;
+                if (_neutralFill[n] != null) _neutralFill[n].gameObject.SetActive(false);
         }
 
-        /// <summary>Anchor/ukuran/posisi fill persegi di dalam kisi (dipakai fill
-        /// per-clue maupun fill netral).</summary>
+        /// <summary>Anchor/ukuran/posisi keping di dalam kisi (dipakai keping
+        /// valid maupun netral).</summary>
         void PlaceFillGeometry(Image img, in RectI rect)
         {
             img.rectTransform.anchorMin = img.rectTransform.anchorMax = new Vector2(0.5f, 0.5f);
-            img.rectTransform.sizeDelta = new Vector2(rect.W * Cell - 2f, rect.H * Cell - 2f);
+            // akar keping = gabungan tile sel − 6 px tiap sisi → keping bertetangga
+            // berjarak 20 px (8 jarak sel + 6 + 6); pusat gabungan tak bergeser
+            img.rectTransform.sizeDelta = new Vector2(PieceSpan(rect.W), PieceSpan(rect.H));
             img.rectTransform.anchoredPosition = new Vector2(
                 -(Cols * Cell) / 2f + (rect.X + rect.W * 0.5f) * Cell,
                  (Rows * Cell) / 2f - (rect.Y + rect.H * 0.5f) * Cell);
         }
 
+        // ------------------------------ resep keping ------------------------------
+
+        /// <summary>Ukuran sisi akar keping untuk span sel: gabungan tile sel
+        /// (span×Cell − 8) dikurangi PieceInset tiap sisi.</summary>
+        float PieceSpan(int span) => span * Cell - Gap - 2f * PieceInset;
+
+        /// <summary>Akar keping: Rounded Sliced radius 32 (56/1.75) — warna
+        /// "tepi keping" diisi pemanggil via TintPiece.</summary>
+        static void MakePieceRoot(Image img)
+        {
+            var rounded = AppRoot.Instance != null ? AppRoot.Instance.Rounded : null;
+            if (rounded != null)
+            {
+                img.sprite = rounded;
+                img.type = Image.Type.Sliced;
+                img.pixelsPerUnitMultiplier = 1.75f;
+            }
+        }
+
+        /// <summary>Anak "Fill" keping: Rounded Sliced radius 26 (56/2.15) margin 6.</summary>
+        static void MakePieceFill(Image root)
+        {
+            var go = new GameObject("Fill", typeof(RectTransform), typeof(Image));
+            var inner = go.GetComponent<Image>();
+            var rounded = AppRoot.Instance != null ? AppRoot.Instance.Rounded : null;
+            if (rounded != null)
+            {
+                inner.sprite = rounded;
+                inner.type = Image.Type.Sliced;
+                inner.pixelsPerUnitMultiplier = 2.15f;
+            }
+            inner.raycastTarget = false;
+            var rt = (RectTransform)go.transform;
+            rt.SetParent(root.rectTransform, false);
+            rt.anchorMin = Vector2.zero; rt.anchorMax = Vector2.one;
+            rt.offsetMin = new Vector2(FrameMargin, FrameMargin);
+            rt.offsetMax = new Vector2(-FrameMargin, -FrameMargin);
+        }
+
+        /// <summary>Image anak "Fill" dari akar keping (atau null).</summary>
+        static Image PieceInner(Component root)
+        {
+            if (root == null || root.transform.childCount == 0) return null;
+            return root.transform.GetChild(0).GetComponent<Image>();
+        }
+
+        /// <summary>Warnai pasangan keping: akar (tepi gelap) + Fill (warna keping).</summary>
+        static void TintPiece(Image root, Color frame, Color fill)
+        {
+            root.color = frame;
+            var inner = PieceInner(root);
+            if (inner != null) inner.color = fill;
+        }
+
+        /// <summary>Tampilkan/sembunyikan sarang preview drag.</summary>
+        void SetPreviewVisible(bool on)
+        {
+            if (_previewRt != null) _previewRt.gameObject.SetActive(on);
+        }
+
         /// <summary>Pool fill netral: rect tak valid tidak punya owner clue, jadi
         /// tidak memetakan ke fill per-clue — pakai Image generik yang dibuat
-        /// sesuai kebutuhan. Hidup di sub-canvas Dynamic; angka & garis kisi tetap
+        /// sesuai kebutuhan. Hidup di sub-canvas Dynamic; tile sel & angka tetap
         /// di canvas induk dan tergambar di atasnya.</summary>
         Image NeutralFill(int n)
         {
             if (n < _neutralFill.Count && _neutralFill[n] != null) return _neutralFill[n];
             var go = new GameObject("fillNeutral", typeof(RectTransform), typeof(Image));
             var img = go.GetComponent<Image>();
-            // sel grid/fill netral = Rounded Sliced radius 20 (56/2.8) — sama dengan fill per-clue
-            var rounded = AppRoot.Instance != null ? AppRoot.Instance.Rounded : null;
-            if (rounded != null)
-            {
-                img.sprite = rounded;
-                img.type = Image.Type.Sliced;
-                img.pixelsPerUnitMultiplier = 2.8f;
-            }
+            // keping netral = struktur keping yang sama (akar + Fill), warna abu
+            MakePieceRoot(img);
+            MakePieceFill(img);
             img.raycastTarget = false;
             go.transform.SetParent(_dyn, false);
             if (n < _neutralFill.Count) _neutralFill[n] = img; else _neutralFill.Add(img);
@@ -261,7 +338,7 @@ namespace GridCut.Game
         /// <summary>Hides the drag preview (called on win overlay open).</summary>
         public void ClearPreview()
         {
-            if (_preview != null) _preview.enabled = false;
+            SetPreviewVisible(false);
             _dragging = false;
         }
 
@@ -306,7 +383,7 @@ namespace GridCut.Game
         {
             if (!_dragging || e.pointerId != _dragPointerId) return;
             _dragging = false;
-            if (_preview != null) _preview.enabled = false;   // tutup preview apa pun hasil jatuhnya
+            SetPreviewVisible(false);   // tutup preview apa pun hasil jatuhnya
             // spec kasus tepi: pointer di luar kisi → sel terdekat; lepas di luar
             // tetap jatuh pada sel tepi, bukan dibatalkan
             if (!TryCell(e.position, out int c, out int r)
@@ -360,7 +437,7 @@ namespace GridCut.Game
         void CancelDrag()
         {
             _dragging = false;
-            if (_preview != null) _preview.enabled = false;
+            SetPreviewVisible(false);
         }
 
         void OnApplicationFocus(bool hasFocus)
@@ -403,27 +480,28 @@ namespace GridCut.Game
 
         void UpdatePreview()
         {
-            if (Session == null || _preview == null) return;
+            if (Session == null || _previewRt == null) return;
             var rect = PuzzleSession.Snap(_dc0, _dr0, _dc1, _dr1, Cols, Rows);
-            bool ok = Session.RectValid(rect);
-            // spec: rect valid berwarna; tidak valid TAMPIL NETRAL — drop tetap dibuat
-            if (ok) _preview.color = new Color(0.30f, 0.85f, 0.35f, 0.5f);
-            else
-            {
-                var c = ThemeApplier.ColorOf(ThemeApplier.Role.GridLine);
-                c.a = 0.4f;
-                _preview.color = c;
-            }
-            _preview.transform.SetAsLastSibling();   // fill netral belakangan jangan menutupi preview
-            _preview.enabled = true;
+            // spec: preview selalu aksen — Fill α0,3 + Ring α1 di rect sama;
+            // angka luas (W×H) di tengah. Validitas tak mengubah warna: hasil
+            // lepas tetap menjadi keping (valid berwarna / tak valid netral)
+            var accent = ThemeApplier.ColorOf(ThemeApplier.Role.Accent);
+            var fillC = accent; fillC.a = 0.3f;
+            _pFill.color = fillC;
+            _pRing.color = accent;
+            _pNum.color = ThemeApplier.ColorOf(ThemeApplier.Role.Text);
+            _pNum.text = (rect.W * rect.H).ToString();
+            _previewRt.transform.SetAsLastSibling();   // fill netral belakangan jangan menutupi preview
+            SetPreviewVisible(true);
             FitPreview(rect);
         }
 
         void FitPreview(in RectI rect)
         {
-            _preview.rectTransform.anchorMin = _preview.rectTransform.anchorMax = new Vector2(0.5f, 0.5f);
-            _preview.rectTransform.sizeDelta = new Vector2(rect.W * Cell - 3f, rect.H * Cell - 3f);
-            _preview.rectTransform.anchoredPosition = new Vector2(
+            _previewRt.anchorMin = _previewRt.anchorMax = new Vector2(0.5f, 0.5f);
+            // preview mengikuti akar keping: gabungan tile sel − 6 px tiap sisi
+            _previewRt.sizeDelta = new Vector2(PieceSpan(rect.W), PieceSpan(rect.H));
+            _previewRt.anchoredPosition = new Vector2(
                 -(Cols * Cell) / 2f + (rect.X + rect.W * 0.5f) * Cell,
                  (Rows * Cell) / 2f - (rect.Y + rect.H * 0.5f) * Cell);
         }
@@ -443,24 +521,25 @@ namespace GridCut.Game
             var label = clueIndex < _clueText.Count ? _clueText[clueIndex] : null;
             var accent = ThemeApplier.ColorOf(ThemeApplier.Role.Accent);
             var labelText = label != null ? label.color : accent;
-            // spec: bila target punya rect (posisi salah), rect itu ikut disorot
-            Image fillImg = clueIndex < _rectFill.Count
-                            && _rectFill[clueIndex] != null && _rectFill[clueIndex].enabled
+            // spec: bila target punya rect (posisi salah), rect itu ikut disorot —
+            // akar + Fill keping kedip aksen bersama, pulih otomatis di akhir loop
+            Image root = clueIndex < _rectFill.Count
+                         && _rectFill[clueIndex] != null && _rectFill[clueIndex].gameObject.activeSelf
                 ? _rectFill[clueIndex] : null;
-            var fillNormal = fillImg != null ? fillImg.color : Color.clear;
+            var inner = PieceInner(root);
+            var frameNormal = root != null ? root.color : Color.clear;
+            var innerNormal = inner != null ? inner.color : Color.clear;
             for (int i = 0; i < 4; i++)   // on-off-on-off = 2 kedip ≈ 0.88 s
             {
                 bool hot = i % 2 == 0;
                 if (label != null) label.color = hot ? accent : labelText;
-                if (fillImg != null)
+                if (root != null)
                 {
-                    var c = hot ? ThemeApplier.ColorOf(ThemeApplier.Role.Accent) : fillNormal;
-                    c.a = 0.92f;
-                    fillImg.color = c;
+                    root.color = hot ? accent : frameNormal;
+                    if (inner != null) inner.color = hot ? accent : innerNormal;
                 }
                 yield return new WaitForSecondsRealtime(0.22f);
             }
-            if (fillImg != null) fillImg.color = fillNormal;
             _hintCo = null;
             apply?.Invoke();
         }

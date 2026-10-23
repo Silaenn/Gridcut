@@ -11,7 +11,7 @@ namespace GridCut.Game
     /// </summary>
     public static class ThemeApplier
     {
-        public enum Role { Background, CellEmpty, GridLine, Text, Accent, Rect }
+        public enum Role { Background, CellEmpty, GridLine, Text, Accent, Board, Rect }
 
         public static ThemeLibrary.Theme Current { get; private set; } = ThemeLibrary.Paper;
 
@@ -33,6 +33,7 @@ namespace GridCut.Game
                 Role.GridLine => Parse(Current.GridLine),
                 Role.Text => Parse(Current.Text),
                 Role.Accent => Parse(Current.Accent),
+                Role.Board => Parse(Current.Board),
                 Role.Rect => Parse(Current.Rects[Mathf.Clamp(rectIndex, 0, Current.Rects.Length - 1)]),
                 _ => Color.white,
             };
@@ -74,6 +75,26 @@ namespace GridCut.Game
         {
             Current = ThemeLibrary.All[Mathf.Clamp(SaveStore.ThemeIndex, 0, ThemeLibrary.All.Length - 1)];
             foreach (var (role, cb) in _subscribers) cb(ColorOf(role));
+        }
+
+        /// <summary>Warna bayangan dari warna dasar: HSV V×0,85 dan S+0,12
+        /// (spec bayangan; rentang S adalah +0,10–0,14, tema Kertas memakai nilai tabel).</summary>
+        public static Color ShadowOf(Color baseColor)
+        {
+            Color.RGBToHSV(baseColor, out float h, out float s, out float v);
+            s = Mathf.Clamp01(s + 0.12f);
+            v *= 0.85f;
+            var c = Color.HSVToRGB(h, s, v);
+            c.a = baseColor.a;
+            return c;
+        }
+
+        /// <summary>Warna teks auto-kontras di atas latar bg: gelap (warna Text)
+        /// untuk latar terang, putih untuk latar gelap.</summary>
+        public static Color ContrastTextOn(Color bg)
+        {
+            float l = 0.299f * bg.r + 0.587f * bg.g + 0.114f * bg.b;
+            return l >= 0.5f ? ColorOf(Role.Text) : Color.white;
         }
 
         public static Color Parse(string hex) =>

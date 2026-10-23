@@ -29,7 +29,7 @@ namespace GridCut.Game
         public Image MuteIcon, MuteIconOff, GearIcon, ThemeCard, SettingsCard;   // sprite ikon Kenney di Assets/Game/UI
         public TMP_Text ThemeTitle, SettingsTitle;
 
-        Action<Color> _textTint, _popupTint;
+        Action<Color> _textTint, _popupTint, _accentTint, _frameTint;
 
         void Awake()
         {
@@ -57,7 +57,7 @@ namespace GridCut.Game
             _textTint = c =>
             {
                 if (Subtitle != null) Subtitle.color = c;
-                Tint("ContinueBtn", ContinueBtn, c);
+                UiFactory.PrimaryTint(ContinueBtn, -16f);   // tombol utama per spec
                 Tint("SelectBtn", SelectBtn, c);
                 Tint("SoundBtn", SoundBtn, c);
                 Tint("ResetBtn", ResetBtn, c);
@@ -76,6 +76,20 @@ namespace GridCut.Game
                 if (ThemeCard != null) ThemeCard.color = c;
                 if (SettingsCard != null) SettingsCard.color = c;
             };
+            _accentTint = _ => UiFactory.PrimaryTint(ContinueBtn, -16f);
+            _frameTint = _ =>
+            {
+                UiFactory.FrameTint(SelectBtn, false);   // sekunder (Levels)
+                UiFactory.FrameTint(ThemeBtn, false);    // sekunder (Tema)
+                UiFactory.FrameTint(SoundBtn, true);     // ikon bulat
+                UiFactory.FrameTint(ResetBtn, true);     // gear = pengaturan
+            };
+            // keadaan tombol (spec): tekan-turun + alpha nonaktif
+            UiFactory.PressFx(ContinueBtn, -16f);
+            UiFactory.PressFx(SelectBtn, -12f);
+            UiFactory.PressFx(ThemeBtn, -12f);
+            UiFactory.PressFx(SoundBtn, -12f);
+            UiFactory.PressFx(ResetBtn, -12f);           // gear → pengaturan
         }
 
         void OnEnable()
@@ -84,6 +98,9 @@ namespace GridCut.Game
             RefreshThemeTint();
             // applyImmediately: re-tint from the current theme on every appearance
             ThemeApplier.Subscribe(ThemeApplier.Role.Text, _textTint, true);
+            ThemeApplier.Subscribe(ThemeApplier.Role.Accent, _accentTint, true);
+            ThemeApplier.Subscribe(ThemeApplier.Role.GridLine, _frameTint, true);
+            ThemeApplier.Subscribe(ThemeApplier.Role.CellEmpty, _frameTint, true);
             ThemeApplier.Subscribe(ThemeApplier.Role.CellEmpty, _popupTint, true);
         }
 
@@ -91,6 +108,8 @@ namespace GridCut.Game
         {
             ThemeApplier.Unsubscribe(_textTint);
             ThemeApplier.Unsubscribe(_popupTint);
+            ThemeApplier.Unsubscribe(_accentTint);
+            ThemeApplier.Unsubscribe(_frameTint);
             // never revive an overlay when Home reappears
             if (ThemePopup != null) ThemePopup.SetActive(false);
             if (SettingsPopup != null) SettingsPopup.SetActive(false);

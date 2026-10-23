@@ -209,18 +209,12 @@ namespace GridCut.Game
             rt.anchoredPosition = basePos;
         }
 
-        /// <summary>Pressed scale 0.95 (ButtonFX) + disabled alpha 0.4 on every Button.</summary>
+        /// <summary>Keadaan tombol (spec): ButtonFX pada tiap Button yang belum diatur
+        /// PressFx resep; nonaktif alpha 0,45 via CanvasGroup (di ButtonFX).</summary>
         void BakeButtonFeel()
         {
             foreach (var b in GetComponentsInChildren<Button>(true))
-            {
-                if (b.GetComponent<ButtonFX>() == null) b.gameObject.AddComponent<ButtonFX>();
-                var cb = b.colors;
-                var dis = cb.disabledColor;
-                dis.a = 0.4f;
-                cb.disabledColor = dis;
-                b.colors = cb;
-            }
+                if (b.GetComponent<ButtonFX>() == null) UiFactory.PressFx(b, -12f);
         }
 
         void OnLevelCompleted(int levelId, int stars)

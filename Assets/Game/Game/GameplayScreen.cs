@@ -36,7 +36,7 @@ namespace GridCut.Game
         int _levelId;
         float _elapsed;
         bool _timerRun;
-        Action<Color> _textTint, _boardTint;
+        Action<Color> _textTint, _boardTint, _accentTint, _frameTint;
         Coroutine _bannerCo;
         GameObject _tutorial;
         bool _panelCompact;
@@ -73,6 +73,19 @@ namespace GridCut.Game
             };
             // Rebuild() is a no-op while Session is unset, so applyImmediately is safe
             _boardTint = _ => Board.ApplyTheme();
+            _accentTint = _ => UiFactory.PrimaryTint(HintBtn, -16f);
+            _frameTint = _ =>
+            {
+                UiFactory.FrameTint(BackBtn, true);    // ikon bulat (panah kembali)
+                UiFactory.FrameTint(ResetBtn, true);
+                UiFactory.FrameTint(MuteBtn, true);
+                if (Panel != null) UiFactory.CardTint(Panel);   // kartu panel kanan
+            };
+            // keadaan tombol (spec): tekan-turun + alpha nonaktif
+            UiFactory.PressFx(HintBtn, -16f);
+            UiFactory.PressFx(BackBtn, -12f);
+            UiFactory.PressFx(ResetBtn, -12f);
+            UiFactory.PressFx(MuteBtn, -12f);
         }
 
         void OnEnable()
@@ -82,6 +95,9 @@ namespace GridCut.Game
             ThemeApplier.Subscribe(ThemeApplier.Role.CellEmpty, _boardTint, true);
             ThemeApplier.Subscribe(ThemeApplier.Role.GridLine, _boardTint, true);
             ThemeApplier.Subscribe(ThemeApplier.Role.Rect, _boardTint, true);
+            ThemeApplier.Subscribe(ThemeApplier.Role.Accent, _accentTint, true);
+            ThemeApplier.Subscribe(ThemeApplier.Role.GridLine, _frameTint, true);
+            ThemeApplier.Subscribe(ThemeApplier.Role.CellEmpty, _frameTint, true);
         }
 
         void OnDisable()
@@ -89,6 +105,8 @@ namespace GridCut.Game
             ThemeApplier.Unsubscribe(_textTint);
             // _boardTint is registered on three roles; Unsubscribe clears all of them
             ThemeApplier.Unsubscribe(_boardTint);
+            ThemeApplier.Unsubscribe(_accentTint);
+            ThemeApplier.Unsubscribe(_frameTint);
             // spec: gameplay disembunyikan membuang state input (drag yang berjalan)
             if (Board != null) Board.ClearPreview();
             // WinOverlay tinggal di root Overlay (spec lapisan overlay), bukan anak
@@ -445,6 +463,12 @@ namespace GridCut.Game
                     AudioService.Play("tap");
                 },
                 new Vector2(320f, 130f), ThemeApplier.ColorOf(ThemeApplier.Role.Accent));
+            // tombol utama: bayangan tebal + label auto-kontras di atas warna Utama
+            var btnAccent = ThemeApplier.ColorOf(ThemeApplier.Role.Accent);
+            UiFactory.ApplyShadow(btn.transform, new Vector2(0f, -16f), ThemeApplier.ShadowOf(btnAccent));
+            UiFactory.PressFx(btn, -16f);
+            var btnLbl = btn.GetComponentInChildren<TMP_Text>();
+            if (btnLbl != null) btnLbl.color = ThemeApplier.ContrastTextOn(btnAccent);
             var art = btn.GetComponent<RectTransform>();
             art.anchorMin = art.anchorMax = new Vector2(0.5f, 0f);
             art.pivot = new Vector2(0.5f, 0f);
