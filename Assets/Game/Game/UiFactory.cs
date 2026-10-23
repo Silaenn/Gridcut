@@ -33,12 +33,20 @@ namespace GridCut.Game
             return ch != null ? ch.gameObject : null;
         }
 
-        public static Image Panel(Transform parent, string name, Color color, bool raycast = false)
+        public static Image Panel(Transform parent, string name, Color color, bool raycast = false,
+            Sprite sprite = null, float ppuMultiplier = 1f)
         {
             var go = new GameObject(name, typeof(RectTransform), typeof(Image));
             var img = go.GetComponent<Image>();
             img.color = color;
             img.raycastTarget = raycast;
+            // panel bulat (kartu/kotak) memakai sprite Rounded 9-slice; radius = border(56)/multiplier
+            if (sprite != null)
+            {
+                img.sprite = sprite;
+                img.type = UnityEngine.UI.Image.Type.Sliced;   // method local bernama Image → kelas harus dieja penuh
+                img.pixelsPerUnitMultiplier = ppuMultiplier;
+            }
             var rt = (RectTransform)go.transform;
             rt.SetParent(parent, false);
             rt.anchorMin = Vector2.zero; rt.anchorMax = Vector2.one;
@@ -80,12 +88,23 @@ namespace GridCut.Game
             var go = new GameObject(name, typeof(RectTransform), typeof(Image), typeof(Button));
             var img = go.GetComponent<Image>();
             img.color = color;
+            // tombol/ubin level = Rounded Sliced, radius 44 (56/1.27) — tabel resep komponen
+            var rounded = AppRoot.Instance != null ? AppRoot.Instance.Rounded : null;
+            if (rounded != null)
+            {
+                img.sprite = rounded;
+                img.type = UnityEngine.UI.Image.Type.Sliced;   // method local bernama Image → kelas harus dieja penuh
+                img.pixelsPerUnitMultiplier = 1.27f;
+            }
             var btn = go.GetComponent<Button>();
             var rt = (RectTransform)go.transform;
             rt.SetParent(parent, false);
             rt.sizeDelta = sizeDelta;
 
             var t = Text(rt.transform, "Label", label, textSize, null, TextAlignmentOptions.Center);
+            // tombol runtime (level & CTA) = angka/tombol utama → font Fredoka-Bold (spesifikasi font)
+            var bold = AppRoot.Instance != null ? AppRoot.Instance.FontBold : null;
+            if (bold != null) t.font = bold;
             t.rectTransform.anchorMin = Vector2.zero;
             t.rectTransform.anchorMax = Vector2.one;
             t.rectTransform.offsetMin = Vector2.zero;

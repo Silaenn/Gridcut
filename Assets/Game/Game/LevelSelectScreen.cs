@@ -16,6 +16,7 @@ namespace GridCut.Game
         public TMP_Text PageLabel;
         public TMP_Text SelTitle;           // header "Pilih Level"
         public Button PrevBtn, NextBtn, BackBtn;
+        public Image PrevIcon, NextIcon;    // panah halaman Kenney (diwarnai warna teks tema)
         public RectTransform GridContent;   // GridLayoutGroup
 
         int _page;
@@ -32,6 +33,8 @@ namespace GridCut.Game
             {
                 if (PageLabel != null) PageLabel.color = c;
                 if (SelTitle != null) SelTitle.color = c;
+                if (PrevIcon != null) PrevIcon.color = c;
+                if (NextIcon != null) NextIcon.color = c;
             };
         }
 
@@ -56,6 +59,8 @@ namespace GridCut.Game
             if (PrevBtn == null) PrevBtn = UiFactory.Wire<Button>(this, null, "PrevBtn");
             if (NextBtn == null) NextBtn = UiFactory.Wire<Button>(this, null, "NextBtn");
             if (BackBtn == null) BackBtn = UiFactory.Wire<Button>(this, null, "BackBtn");
+            if (PrevIcon == null) PrevIcon = UiFactory.Wire<Image>(this, null, "PrevBtn/Icon");
+            if (NextIcon == null) NextIcon = UiFactory.Wire<Image>(this, null, "NextBtn/Icon");
             if (GridContent == null)
             {
                 var g = t.Find("Grid");

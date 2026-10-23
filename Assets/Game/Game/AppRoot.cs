@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
 using UnityEngine.InputSystem;
+using TMPro;
 
 namespace GridCut.Game
 {
@@ -26,6 +27,13 @@ namespace GridCut.Game
 
         [Header("Shared sprites (PNG assets, wired in scene)")]
         public Sprite StarFull, StarEmpty, Padlock;
+
+        [Header("Shared fonts (SDF assets, wired in scene)")]
+        public TMP_FontAsset FontBold, FontMedium;   // SemiBold = default TMP Settings
+
+        [Header("Shapes (9-slice, wired in scene)")]
+        public Sprite Rounded;       // Assets/Game/UI/Rounded.png (putih, radius 56, border 56)
+        public Sprite RoundedRing;   // Assets/Game/UI/RoundedRing.png (cincin 10px, radius luar 56, border 56)
 
         enum ScreenId { Home = 0, LevelSelect = 1, Gameplay = 2 }
         readonly List<ScreenId> _history = new();

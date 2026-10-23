@@ -162,7 +162,7 @@ namespace GridCut.Game
         public void RefreshLabels()
         {
             var cont = LabelOf(ContinueBtn);
-            if (cont != null) cont.text = $"Lanjutkan \u00b7 {SaveStore.UnlockedLevel}";
+            if (cont != null) cont.text = $"Lanjutkan \u00b7 Level {SaveStore.UnlockedLevel}";   // spec: "Continue · Level 4"
             var snd = LabelOf(SoundBtn);
             if (snd != null) snd.text = SaveStore.SoundOn ? "Suara: nyala" : "Suara: mati";
         }

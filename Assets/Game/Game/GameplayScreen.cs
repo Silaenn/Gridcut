@@ -411,6 +411,15 @@ namespace GridCut.Game
             card.anchorMin = card.anchorMax = card.pivot = new Vector2(0.5f, 0.5f);
             card.sizeDelta = new Vector2(640f, 640f);
             cardGo.GetComponent<Image>().color = ThemeApplier.ColorOf(ThemeApplier.Role.CellEmpty);
+            // kartu tutorial = Rounded Sliced radius 48 (56/1.17) — tabel resep komponen
+            var cardImg = cardGo.GetComponent<Image>();
+            var cardRounded = AppRoot.Instance != null ? AppRoot.Instance.Rounded : null;
+            if (cardRounded != null)
+            {
+                cardImg.sprite = cardRounded;
+                cardImg.type = Image.Type.Sliced;
+                cardImg.pixelsPerUnitMultiplier = 1.17f;
+            }
 
             var title = UiFactory.Text(card, "Title", "Cara Bermain", 46,
                 ThemeApplier.ColorOf(ThemeApplier.Role.Text), TMPro.TextAlignmentOptions.Center);
@@ -422,6 +431,9 @@ namespace GridCut.Game
             var body = UiFactory.Text(card, "Body", "", 34,
                 ThemeApplier.ColorOf(ThemeApplier.Role.Text), TMPro.TextAlignmentOptions.TopLeft,
                 new Vector2(520f, 320f));
+            // teks tutorial = teks kecil → Fredoka-Medium (spesifikasi pemakaian font)
+            var medium = AppRoot.Instance != null ? AppRoot.Instance.FontMedium : null;
+            if (medium != null) body.font = medium;
             body.enableWordWrapping = true;
             var brt = body.rectTransform;
             brt.anchorMin = brt.anchorMax = brt.pivot = new Vector2(0.5f, 1f);

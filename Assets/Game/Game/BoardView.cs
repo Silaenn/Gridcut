@@ -82,8 +82,9 @@ namespace GridCut.Game
             float bw = Cols * Cell, bh = Rows * Cell;
             _rt.sizeDelta = new Vector2(bw, bh);
 
-            // background and cell area
-            var bg = UiFactory.Panel(_rt, "bg", ThemeApplier.ColorOf(ThemeApplier.Role.CellEmpty));
+            // background and cell area — papan = Rounded 9-slice radius 48 (56/1.17)
+            var bg = UiFactory.Panel(_rt, "bg", ThemeApplier.ColorOf(ThemeApplier.Role.CellEmpty),
+                false, AppRoot.Instance != null ? AppRoot.Instance.Rounded : null, 1.17f);
 
             // Sub-canvas terpisah khusus lapisan yang sering berubah (keping, preview,
             // input). Papan, garis kisi, dan angka statis tetap di canvas induk —
@@ -100,6 +101,14 @@ namespace GridCut.Game
             {
                 var go = new GameObject($"fill{ci}", typeof(RectTransform), typeof(Image));
                 var img = go.GetComponent<Image>();
+                // sel grid/fill papan = Rounded Sliced radius 20 (56/2.8) — tabel resep komponen
+                var rounded = AppRoot.Instance != null ? AppRoot.Instance.Rounded : null;
+                if (rounded != null)
+                {
+                    img.sprite = rounded;
+                    img.type = Image.Type.Sliced;
+                    img.pixelsPerUnitMultiplier = 2.8f;
+                }
                 go.transform.SetParent(_dyn, false);
                 img.raycastTarget = false;
                 img.enabled = false;
@@ -121,6 +130,9 @@ namespace GridCut.Game
                 var t = UiFactory.Text(_rt, $"clue{ci}", clue.Value.ToString(),
                     Mathf.Clamp(Mathf.RoundToInt(Cell * 0.5f), Mathf.RoundToInt(36f * Ref), Mathf.RoundToInt(72f * Ref)),
                     tc, TMPro.TextAlignmentOptions.Center);
+                // angka clue = font Fredoka-Bold (spesifikasi pemakaian font)
+                var bold = AppRoot.Instance != null ? AppRoot.Instance.FontBold : null;
+                if (bold != null) t.font = bold;
                 var rt = t.rectTransform;
                 rt.anchorMin = rt.anchorMax = new Vector2(0.5f, 0.5f);
                 rt.sizeDelta = new Vector2(Cell - 4f, Cell - 4f);
@@ -132,6 +144,16 @@ namespace GridCut.Game
             var pgo = new GameObject("preview", typeof(RectTransform), typeof(Image));
             _preview = pgo.GetComponent<Image>();
             pgo.transform.SetParent(_dyn, false);
+            // garis tepi preview = RoundedRing (cincin 10px), Sliced tanpa fill center,
+            // multiplier 1.75 → ketebalan di layar ≈ 6 px (10/1.75)
+            var ring = AppRoot.Instance != null ? AppRoot.Instance.RoundedRing : null;
+            if (ring != null)
+            {
+                _preview.sprite = ring;
+                _preview.type = Image.Type.Sliced;
+                _preview.fillCenter = false;
+                _preview.pixelsPerUnitMultiplier = 1.75f;
+            }
             _preview.raycastTarget = false;
             _preview.enabled = false;
 
@@ -222,6 +244,14 @@ namespace GridCut.Game
             if (n < _neutralFill.Count && _neutralFill[n] != null) return _neutralFill[n];
             var go = new GameObject("fillNeutral", typeof(RectTransform), typeof(Image));
             var img = go.GetComponent<Image>();
+            // sel grid/fill netral = Rounded Sliced radius 20 (56/2.8) — sama dengan fill per-clue
+            var rounded = AppRoot.Instance != null ? AppRoot.Instance.Rounded : null;
+            if (rounded != null)
+            {
+                img.sprite = rounded;
+                img.type = Image.Type.Sliced;
+                img.pixelsPerUnitMultiplier = 2.8f;
+            }
             img.raycastTarget = false;
             go.transform.SetParent(_dyn, false);
             if (n < _neutralFill.Count) _neutralFill[n] = img; else _neutralFill.Add(img);

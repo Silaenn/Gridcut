@@ -84,7 +84,7 @@ namespace GridCut.Game
                 img.sprite = BoxSprite;
                 img.type = Image.Type.Sliced;
                 img.fillCenter = true;
-                img.pixelsPerUnitMultiplier = 1.5f;   // sudut dekorasi tdk perlu sehalus tombol
+                img.pixelsPerUnitMultiplier = 1.56f;   // kotak melayang radius 36 (56/1.56)
                 img.raycastTarget = false;
 
                 var rt = (RectTransform)go.transform;
