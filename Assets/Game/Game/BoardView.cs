@@ -111,9 +111,9 @@ namespace GridCut.Game
                 bg.rectTransform.offsetMax = new Vector2(Pad, Pad);
             }
             bg.color = ThemeApplier.ColorOf(ThemeApplier.Role.Board);
-            // bayangan = versi gelap warna Papan (ShadowOf, masuk pattern "bayangan Aksen")
+            // bayangan = peran bayangan Papan (tabel bag. 4)
             UiFactory.ApplyShadow(bg, new Vector2(0f, -16f),
-                ThemeApplier.ShadowOf(ThemeApplier.ColorOf(ThemeApplier.Role.Board)));
+                ThemeApplier.ColorOf(ThemeApplier.Role.ShadowBoard));
 
             // sel grid = tile Rounded warna Permukaan, radius 20 (56/2.8), jarak antar sel 8 px;
             // hidup di kontainer "Cells" (slot bake scene) agar tak ikut dihapus tiap rebuild
@@ -266,10 +266,11 @@ namespace GridCut.Game
                 Image img;
                 if (owner >= 0 && owner < _rectFill.Count && _rectFill[owner] != null)
                 {
-                    // keping valid: akar = tepi keping (gelap), Fill = warna keping
-                    var rc = ThemeApplier.ColorOf(ThemeApplier.Role.Rect, Session.Puzzle.Clues[owner].ColorIndex);
+                    // keping valid: akar = Tepi keping (tabel bag. 4), Fill = warna keping
+                    int ci = Session.Puzzle.Clues[owner].ColorIndex;
                     img = _rectFill[owner];
-                    TintPiece(img, ThemeApplier.ShadowOf(rc), rc);
+                    TintPiece(img, ThemeApplier.ColorOf(ThemeApplier.Role.RectEdge, ci),
+                        ThemeApplier.ColorOf(ThemeApplier.Role.Rect, ci));
                 }
                 else
                 {

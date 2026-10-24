@@ -126,17 +126,18 @@ namespace GridCut.Game
             sh.useGraphicAlpha = false;
         }
 
-        /// <summary>Resep tombol utama: latar warna Utama (Accent), bayangan tebal
-        /// (0, -shadowDy), label auto-kontras gelap/putih; tanpa bingkai.</summary>
+        /// <summary>Resep tombol utama: latar warna Utama (Primary), bayangan tebal
+        /// (0, -shadowDy) = bayangan warna Utama; label auto-kontras gelap/putih;
+        /// tanpa bingkai. (Tabel bag. 4: tombol utama = peran Utama.)</summary>
         public static void PrimaryTint(Button b, float shadowDy)
         {
             if (b == null) return;
-            var accent = ThemeApplier.ColorOf(ThemeApplier.Role.Accent);
+            var primary = ThemeApplier.ColorOf(ThemeApplier.Role.Primary);
             var img = b.GetComponent<Image>();
-            if (img != null) img.color = accent;
-            ApplyShadow(b.transform, new Vector2(0f, shadowDy), ThemeApplier.ShadowOf(accent));
+            if (img != null) img.color = primary;
+            ApplyShadow(b.transform, new Vector2(0f, shadowDy), ThemeApplier.ColorOf(ThemeApplier.Role.ShadowPrimary));
             var lbl = b.GetComponentInChildren<TMP_Text>(true);
-            if (lbl != null) lbl.color = ThemeApplier.ContrastTextOn(accent);
+            if (lbl != null) lbl.color = ThemeApplier.ContrastTextOn(primary);
         }
 
         /// <summary>Kerangka tombol sekunder/ikon: akar warna Tepi (GridLine) +

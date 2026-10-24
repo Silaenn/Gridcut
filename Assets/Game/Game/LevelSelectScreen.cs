@@ -21,7 +21,9 @@ namespace GridCut.Game
 
         int _page;
         const int PerPage = 15;             // spec: kisi 5 x 3
-        Action<Color> _textTint, _frameTint;
+        RectTransform _dots;                // PageDots bake scene (indikator halaman)
+        Image[] _dotImgs;
+        Action<Color> _textTint, _frameTint, _dotsTint, _mutedTint;
 
         void Awake()
         {
@@ -31,17 +33,18 @@ namespace GridCut.Game
             BackBtn.onClick.AddListener(Back);
             _textTint = c =>
             {
-                if (PageLabel != null) PageLabel.color = c;
                 if (SelTitle != null) SelTitle.color = c;
                 if (PrevIcon != null) PrevIcon.color = c;
                 if (NextIcon != null) NextIcon.color = c;
             };
+            _mutedTint = c => { if (PageLabel != null) PageLabel.color = c; };   // "1 / 3" = subjudul
             _frameTint = _ =>
             {
                 UiFactory.FrameTint(PrevBtn, true);
                 UiFactory.FrameTint(NextBtn, true);
                 UiFactory.FrameTint(BackBtn, true);
             };
+            _dotsTint = _ => RepaintDots();
             // keadaan tombol (spec): tekan-turun + alpha nonaktif
             UiFactory.PressFx(PrevBtn, -12f);
             UiFactory.PressFx(NextBtn, -12f);
@@ -64,14 +67,19 @@ namespace GridCut.Game
         {
             // applyImmediately re-tints PageLabel from the current theme on appearance
             ThemeApplier.Subscribe(ThemeApplier.Role.Text, _textTint, true);
+            ThemeApplier.Subscribe(ThemeApplier.Role.TextMuted, _mutedTint, true);
             ThemeApplier.Subscribe(ThemeApplier.Role.GridLine, _frameTint, true);
             ThemeApplier.Subscribe(ThemeApplier.Role.CellEmpty, _frameTint, true);
+            ThemeApplier.Subscribe(ThemeApplier.Role.Accent, _dotsTint, true);
+            ThemeApplier.Subscribe(ThemeApplier.Role.GridLine, _dotsTint, true);
         }
 
         void OnDisable()
         {
             ThemeApplier.Unsubscribe(_textTint);
+            ThemeApplier.Unsubscribe(_mutedTint);
             ThemeApplier.Unsubscribe(_frameTint);
+            ThemeApplier.Unsubscribe(_dotsTint);
         }
 
         /// <summary>Recovers scene refs by child name when serialized wiring fails.</summary>
@@ -93,6 +101,16 @@ namespace GridCut.Game
             {
                 var g = t.Find("Grid");
                 if (g != null) GridContent = g.GetComponent<RectTransform>();
+            }
+            if (_dots == null)
+            {
+                _dots = t.Find("PageDots") as RectTransform;
+                if (_dots != null)
+                {
+                    _dotImgs = new Image[_dots.childCount];
+                    for (int i = 0; i < _dotImgs.Length; i++)
+                        _dotImgs[i] = _dots.GetChild(i).GetComponent<Image>();
+                }
             }
         }
 
@@ -118,6 +136,7 @@ namespace GridCut.Game
             int end = Mathf.Min(start + PerPage - 1, SaveStore.LevelCount);
             int pages = Mathf.CeilToInt(SaveStore.LevelCount / (float)PerPage);
             PageLabel.text = $"{_page + 1} / {pages}";
+            RepaintDots();
 
             if (GridContent.childCount == 0)
             {
@@ -138,6 +157,17 @@ namespace GridCut.Game
                 seat.gameObject.SetActive(show);
                 if (show) PaintTile(seat, id);
             }
+        }
+
+        /// <summary>Titik halaman (spec): aktif warna Aksen, lainnya Tepi (GridLine);
+        /// jumlah titik bake = jumlah halaman (150 level / 15 per halaman = 10).</summary>
+        void RepaintDots()
+        {
+            if (_dotImgs == null) return;
+            var accent = ThemeApplier.ColorOf(ThemeApplier.Role.Accent);
+            var tepi = ThemeApplier.ColorOf(ThemeApplier.Role.GridLine);
+            for (int i = 0; i < _dotImgs.Length; i++)
+                if (_dotImgs[i] != null) _dotImgs[i].color = i == _page ? accent : tepi;
         }
 
         void OnTileTap(int slotIdx)
@@ -196,7 +226,7 @@ namespace GridCut.Game
             var accent = ThemeApplier.ColorOf(ThemeApplier.Role.Accent);
             rootImg.color = active ? accent : ThemeApplier.ColorOf(ThemeApplier.Role.GridLine);
             if (shadow != null)
-                shadow.effectColor = active ? ThemeApplier.ShadowOf(accent)
+                shadow.effectColor = active ? ThemeApplier.ColorOf(ThemeApplier.Role.ShadowAccent)
                     : ThemeApplier.ColorOf(ThemeApplier.Role.GridLine);
             if (fillImg != null) fillImg.color = ThemeApplier.ColorOf(ThemeApplier.Role.CellEmpty);
             if (num != null)
@@ -204,9 +234,9 @@ namespace GridCut.Game
                     : ThemeApplier.ColorOf(ThemeApplier.Role.Text);
             if (rowGo != null)
                 UiFactory.SetStars(rowGo.transform, SaveStore.BestStars(id),
-                    accent,
+                    ThemeApplier.ColorOf(ThemeApplier.Role.Primary),
                     active ? ThemeApplier.ColorOf(ThemeApplier.Role.Background)
-                           : ThemeApplier.ColorOf(ThemeApplier.Role.GridLine));
+                           : ThemeApplier.ColorOf(ThemeApplier.Role.GridLine));   // terisi Utama; kosong: Latar (aktif) / Tepi (selesai)
         }
 
         // ------------------------------ resep ubin level ------------------------------
@@ -281,9 +311,10 @@ namespace GridCut.Game
                 grt.sizeDelta = new Vector2(248f, 248f);
                 grt.anchoredPosition = Vector2.zero;
                 img.color = accent;
-                UiFactory.ApplyShadow(img, new Vector2(0f, -12f), ThemeApplier.ShadowOf(accent));
+                UiFactory.ApplyShadow(img, new Vector2(0f, -12f), ThemeApplier.ColorOf(ThemeApplier.Role.ShadowAccent));
                 Face(root, levelId, ThemeApplier.ContrastTextOn(accent),
-                    accent, ThemeApplier.ColorOf(ThemeApplier.Role.Background), bold);
+                    ThemeApplier.ColorOf(ThemeApplier.Role.Primary),
+                    ThemeApplier.ColorOf(ThemeApplier.Role.Background), bold);
             }
             else
             {
@@ -294,7 +325,8 @@ namespace GridCut.Game
                 fill.rectTransform.offsetMin = new Vector2(6f, 6f);
                 fill.rectTransform.offsetMax = new Vector2(-6f, -6f);
                 Face(fill.rectTransform, levelId, ThemeApplier.ColorOf(ThemeApplier.Role.Text),
-                    accent, ThemeApplier.ColorOf(ThemeApplier.Role.GridLine), bold);
+                    ThemeApplier.ColorOf(ThemeApplier.Role.Primary),
+                    ThemeApplier.ColorOf(ThemeApplier.Role.GridLine), bold);
             }
 
             int levelRef = levelId;

@@ -29,7 +29,7 @@ namespace GridCut.Game
         public Image MuteIcon, MuteIconOff, GearIcon, ThemeCard, SettingsCard;   // sprite ikon Kenney di Assets/Game/UI
         public TMP_Text ThemeTitle, SettingsTitle;
 
-        Action<Color> _textTint, _popupTint, _accentTint, _frameTint;
+        Action<Color> _textTint, _popupTint, _primaryTint, _mutedTint, _frameTint;
         RectTransform _logoRow;             // huruf logo GRIDCUT (dibake runtime)
         Image[] _logoTiles;                 // [i] = ubin huruf ke-i
         Action<Color>[] _logoTints;         // langganan warna keping per huruf (Rect i%6)
@@ -59,8 +59,6 @@ namespace GridCut.Game
             // scene logs a warning instead of throwing inside the theme callback)
             _textTint = c =>
             {
-                if (Subtitle != null) Subtitle.color = c;
-                UiFactory.PrimaryTint(ContinueBtn, -16f);   // tombol utama per spec
                 Tint("SelectBtn", SelectBtn, c);
                 Tint("SoundBtn", SoundBtn, c);
                 Tint("ResetBtn", ResetBtn, c);
@@ -79,7 +77,8 @@ namespace GridCut.Game
                 if (ThemeCard != null) ThemeCard.color = c;
                 if (SettingsCard != null) SettingsCard.color = c;
             };
-            _accentTint = _ => UiFactory.PrimaryTint(ContinueBtn, -16f);
+            _primaryTint = _ => UiFactory.PrimaryTint(ContinueBtn, -16f);
+            _mutedTint = c => { if (Subtitle != null) Subtitle.color = c; };   // subjudul = Teks redup
             _frameTint = _ =>
             {
                 UiFactory.FrameTint(SelectBtn, false);   // sekunder (Levels)
@@ -102,7 +101,8 @@ namespace GridCut.Game
             if (_logoRow == null) BuildLogo();   // sprite Rounded belum siap saat Awake → coba lagi
             // applyImmediately: re-tint from the current theme on every appearance
             ThemeApplier.Subscribe(ThemeApplier.Role.Text, _textTint, true);
-            ThemeApplier.Subscribe(ThemeApplier.Role.Accent, _accentTint, true);
+            ThemeApplier.Subscribe(ThemeApplier.Role.Primary, _primaryTint, true);
+            ThemeApplier.Subscribe(ThemeApplier.Role.TextMuted, _mutedTint, true);
             ThemeApplier.Subscribe(ThemeApplier.Role.GridLine, _frameTint, true);
             ThemeApplier.Subscribe(ThemeApplier.Role.CellEmpty, _frameTint, true);
             ThemeApplier.Subscribe(ThemeApplier.Role.CellEmpty, _popupTint, true);
@@ -115,7 +115,8 @@ namespace GridCut.Game
         {
             ThemeApplier.Unsubscribe(_textTint);
             ThemeApplier.Unsubscribe(_popupTint);
-            ThemeApplier.Unsubscribe(_accentTint);
+            ThemeApplier.Unsubscribe(_primaryTint);
+            ThemeApplier.Unsubscribe(_mutedTint);
             ThemeApplier.Unsubscribe(_frameTint);
             if (_logoTints != null)
                 foreach (var cb in _logoTints) ThemeApplier.Unsubscribe(cb);
@@ -190,7 +191,12 @@ namespace GridCut.Game
         public void RefreshLabels()
         {
             var cont = LabelOf(ContinueBtn);
-            if (cont != null) cont.text = $"Lanjutkan \u00b7 Level {SaveStore.UnlockedLevel}";   // spec: "Continue · Level 4"
+            if (cont != null)
+            {
+                int level = SaveStore.UnlockedLevel;
+                if (level <= 1) cont.text = "Play";
+                else cont.text = $"Lanjutkan \u00b7 Level {level}";
+            }
             var snd = LabelOf(SoundBtn);
             if (snd != null) snd.text = SaveStore.SoundOn ? "Suara: nyala" : "Suara: mati";
         }
@@ -374,13 +380,14 @@ namespace GridCut.Game
         }
 
         /// <summary>Warna ubin huruf ke-i mengikuti tema: warna keping i (Rect i%6),
-        /// bayangan versi gelapnya, huruf auto-kontras di atasnya.</summary>
+        /// bayangan = Tepi keping i (tabel bag. 4), huruf auto-kontras di atasnya.</summary>
         void LogoTint(int i)
         {
             if (_logoTiles == null || i >= _logoTiles.Length || _logoTiles[i] == null) return;
             var c = ThemeApplier.ColorOf(ThemeApplier.Role.Rect, i % 6);
             _logoTiles[i].color = c;
-            UiFactory.ApplyShadow(_logoTiles[i], new Vector2(0f, -10f), ThemeApplier.ShadowOf(c));
+            UiFactory.ApplyShadow(_logoTiles[i], new Vector2(0f, -10f),
+                ThemeApplier.ColorOf(ThemeApplier.Role.RectEdge, i % 6));
             var glyph = _logoTiles[i].GetComponentInChildren<TMP_Text>(true);
             if (glyph != null) glyph.color = ThemeApplier.ContrastTextOn(c);
         }

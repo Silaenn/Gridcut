@@ -36,7 +36,9 @@ namespace GridCut.Game
         int _levelId;
         float _elapsed;
         bool _timerRun;
-        Action<Color> _textTint, _boardTint, _accentTint, _frameTint;
+        Action<Color> _textTint, _boardTint, _accentTint, _frameTint, _badgeTint, _primaryTint, _tutPrimaryTint;
+        Image _badgeBack, _badgeDisc;          // lencana Hint bake scene (lingkaran)
+        TMP_Text _badgeCount;                  // angka sisa hint di lencana
         Coroutine _bannerCo;
         GameObject _tutorial;
         bool _panelCompact;
@@ -48,6 +50,7 @@ namespace GridCut.Game
         void Awake()
         {
             AutoWire();
+            WireBadge();
             ResetBtn.onClick.AddListener(DoReset);
             HintBtn.onClick.AddListener(DoHint);
             BackBtn.onClick.AddListener(DoBack);
@@ -73,7 +76,13 @@ namespace GridCut.Game
             };
             // Rebuild() is a no-op while Session is unset, so applyImmediately is safe
             _boardTint = _ => Board.ApplyTheme();
-            _accentTint = _ => UiFactory.PrimaryTint(HintBtn, -16f);
+            _accentTint = c =>
+            {
+                if (_badgeDisc != null) _badgeDisc.color = c;
+                if (_badgeCount != null) _badgeCount.color = ThemeApplier.ContrastTextOn(c);
+            };
+            _primaryTint = _ => UiFactory.PrimaryTint(HintBtn, -16f);
+            _badgeTint = c => { if (_badgeBack != null) _badgeBack.color = c; };
             _frameTint = _ =>
             {
                 UiFactory.FrameTint(BackBtn, true);    // ikon bulat (panah kembali)
@@ -96,8 +105,10 @@ namespace GridCut.Game
             ThemeApplier.Subscribe(ThemeApplier.Role.GridLine, _boardTint, true);
             ThemeApplier.Subscribe(ThemeApplier.Role.Rect, _boardTint, true);
             ThemeApplier.Subscribe(ThemeApplier.Role.Accent, _accentTint, true);
+            ThemeApplier.Subscribe(ThemeApplier.Role.Primary, _primaryTint, true);
             ThemeApplier.Subscribe(ThemeApplier.Role.GridLine, _frameTint, true);
             ThemeApplier.Subscribe(ThemeApplier.Role.CellEmpty, _frameTint, true);
+            ThemeApplier.Subscribe(ThemeApplier.Role.CellEmpty, _badgeTint, true);
         }
 
         void OnDisable()
@@ -106,7 +117,10 @@ namespace GridCut.Game
             // _boardTint is registered on three roles; Unsubscribe clears all of them
             ThemeApplier.Unsubscribe(_boardTint);
             ThemeApplier.Unsubscribe(_accentTint);
+            ThemeApplier.Unsubscribe(_primaryTint);
             ThemeApplier.Unsubscribe(_frameTint);
+            ThemeApplier.Unsubscribe(_badgeTint);
+            if (_tutPrimaryTint != null) ThemeApplier.Unsubscribe(_tutPrimaryTint);
             // spec: gameplay disembunyikan membuang state input (drag yang berjalan)
             if (Board != null) Board.ClearPreview();
             // WinOverlay tinggal di root Overlay (spec lapisan overlay), bukan anak
@@ -290,13 +304,30 @@ namespace GridCut.Game
             SaveStore.SavePlayState(_levelId, _session.HintCount, _session.Placed);
         }
 
-        /// <summary>Spec: Hint button carries the remaining count; disabled at 0/3.</summary>
+        /// <summary>Spec lencana: sisa Hint tampil sebagai angka di badge bulat
+        /// pojok kanan-atas tombol; tombol nonaktif saat 0. Label tombol cukup "Hint".</summary>
         void UpdateHintLabel()
         {
-            if (HintBtn == null || _session == null) return;
-            var t = HintBtn.GetComponentInChildren<TMP_Text>(true);
-            if (t != null) t.text = $"Hint {_session.HintsLeft}/{PuzzleSession.HintLimit}";
-            HintBtn.interactable = _session.HintsLeft > 0;
+            if (_session == null) return;
+            int left = _session.HintsLeft;
+            if (HintBtn != null) HintBtn.interactable = left > 0;
+            if (_badgeCount != null) _badgeCount.text = left.ToString();
+            var lbl = HintBtn != null ? HintBtn.transform.Find("Label") : null;
+            var t = lbl != null ? lbl.GetComponent<TMP_Text>() : null;
+            if (t != null) t.text = "Hint";
+        }
+
+        /// <summary>Lencana Hint bake scene: anak tombol Hint berisi lingkaran
+        /// Permukaan + Disc Aksen + angka auto-kontras (spec bagian lencana).</summary>
+        void WireBadge()
+        {
+            var badge = HintBtn != null ? HintBtn.transform.Find("HintBadge") : null;
+            if (badge == null) return;
+            var disc = badge.Find("Disc");
+            var cnt = badge.Find("Count");
+            _badgeBack = badge.GetComponent<Image>();
+            _badgeDisc = disc != null ? disc.GetComponent<Image>() : null;
+            _badgeCount = cnt != null ? cnt.GetComponent<TMP_Text>() : null;
         }
 
         void OnSolved(bool solved)
@@ -320,12 +351,16 @@ namespace GridCut.Game
             WinDetail.text = $"Waktu {TimeSpan.FromSeconds(_elapsed):mm\\:ss}"
                 + (wasUnlocking ? "\nLevel baru terbuka!" : "");
             UiFactory.SetStars(WinStarsRow, best,
-                ThemeApplier.ColorOf(ThemeApplier.Role.Accent),
-                new Color(0.55f, 0.55f, 0.55f, 0.9f));
+                ThemeApplier.ColorOf(ThemeApplier.Role.Primary),
+                ThemeApplier.ColorOf(ThemeApplier.Role.GridLine));   // bintang kosong = Tepi (tabel bag. 4)
             bool last = _levelId >= SaveStore.LevelCount;
             WinNextBtn.gameObject.SetActive(!last);
             if (WinFinishMsg != null) WinFinishMsg.gameObject.SetActive(last);   // spec: pesan di level terakhir
             WinOverlay.SetActive(true);
+            // peran warna overlay (tabel bag. 4): utama = Utama, lainnya bingkai Tepi
+            UiFactory.PrimaryTint(WinNextBtn, -16f);
+            UiFactory.FrameTint(WinRepeatBtn, true);
+            UiFactory.FrameTint(WinMenuBtn, true);
             LevelCompleted?.Invoke(_levelId, stars);
             if (wasUnlocking) AudioService.Play("unlock");
 
@@ -411,7 +446,7 @@ namespace GridCut.Game
         }
 
         /// <summary>Sambung tutorial hasil bake scene: klik "Mengerti", tekan
-        /// tombol, dan warna label kontras — struktur statis sudah di scene.</summary>
+        /// tombol, dan resep tombol utama (peran Utama — tabel bag. 4).</summary>
         void WireBakedTutorial()
         {
             var mBtn = _tutorial.transform.Find("Card/MengertiBtn");
@@ -426,9 +461,14 @@ namespace GridCut.Game
                 });
                 UiFactory.PressFx(b, -16f);
             }
-            var lbl = b != null ? b.GetComponentInChildren<TMP_Text>() : null;
-            if (lbl != null)
-                lbl.color = ThemeApplier.ContrastTextOn(ThemeApplier.ColorOf(ThemeApplier.Role.Accent));
+            // warna tombol utama mengikuti peran Utama (subscribe agar ikut tema)
+            var btn = b;
+            UiFactory.PrimaryTint(btn, -16f);
+            if (_tutPrimaryTint == null)
+            {
+                _tutPrimaryTint = _ => { if (btn != null) UiFactory.PrimaryTint(btn, -16f); };
+                ThemeApplier.Subscribe(ThemeApplier.Role.Primary, _tutPrimaryTint, false);
+            }
         }
 
         static string TutorialText(int levelId) => levelId switch
@@ -493,13 +533,13 @@ namespace GridCut.Game
                     _tutorial.SetActive(false);
                     AudioService.Play("tap");
                 },
-                new Vector2(320f, 130f), ThemeApplier.ColorOf(ThemeApplier.Role.Accent));
+                new Vector2(320f, 130f), ThemeApplier.ColorOf(ThemeApplier.Role.Primary));
             // tombol utama: bayangan tebal + label auto-kontras di atas warna Utama
-            var btnAccent = ThemeApplier.ColorOf(ThemeApplier.Role.Accent);
-            UiFactory.ApplyShadow(btn.transform, new Vector2(0f, -16f), ThemeApplier.ShadowOf(btnAccent));
+            var btnPrimary = ThemeApplier.ColorOf(ThemeApplier.Role.Primary);
+            UiFactory.ApplyShadow(btn.transform, new Vector2(0f, -16f), ThemeApplier.ColorOf(ThemeApplier.Role.ShadowPrimary));
             UiFactory.PressFx(btn, -16f);
             var btnLbl = btn.GetComponentInChildren<TMP_Text>();
-            if (btnLbl != null) btnLbl.color = ThemeApplier.ContrastTextOn(btnAccent);
+            if (btnLbl != null) btnLbl.color = ThemeApplier.ContrastTextOn(btnPrimary);
             var art = btn.GetComponent<RectTransform>();
             art.anchorMin = art.anchorMax = new Vector2(0.5f, 0f);
             art.pivot = new Vector2(0.5f, 0f);

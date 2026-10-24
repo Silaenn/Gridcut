@@ -7,8 +7,9 @@ namespace GridCut.Game
     /// <summary>
     /// Latar dekoratif spesifikasi bag. 2: sprite pola titik (Image Tiled — tile 48px,
     /// dot diameter 9px, jarak 48px) + kotak Rounded 9-slice melayang (border 56).
-    /// Kedua sprite putih; warna lewat Image.color mengikuti tema (GridLine utk titik,
-    /// 6 warna rect utk kotak). Terpasang pada GO Background full-screen di luar
+    /// Kedua sprite putih; warna lewat Image.color mengikuti tema: titik memakai
+    /// peran Titik (Role.Dot — tabel bag. 4), kotak memakai 6 warna keping
+    /// (Rect i % 6). Terpasang pada GO Background full-screen di luar
     /// SafeArea. Semua non-raycast agar tidak menghalangi input UI.
     /// </summary>
     public class BgDecor : MonoBehaviour
@@ -46,7 +47,7 @@ namespace GridCut.Game
             MakeDots();
             MakeBoxes();
             _tint = ApplyThemeColors;
-            ThemeApplier.Subscribe(ThemeApplier.Role.GridLine, _tint, true);
+            ThemeApplier.Subscribe(ThemeApplier.Role.Dot, _tint, true);
         }
 
         void OnDestroy()
@@ -131,7 +132,7 @@ namespace GridCut.Game
         {
             if (_dots != null)
             {
-                var c = ThemeApplier.ColorOf(ThemeApplier.Role.GridLine);
+                var c = ThemeApplier.ColorOf(ThemeApplier.Role.Dot);
                 c.a = DotStrength;
                 _dots.color = c;
             }
