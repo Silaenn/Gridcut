@@ -9,15 +9,16 @@ namespace GridCut.Game
 {
     /// <summary>
     /// Main menu screen (scene component; hierarchy and references are wired in the
-    /// scene). Three stacked menu buttons per spec; Tema opens the swatch popup,
-    /// the bottom-right icon pair covers mute and Pengaturan (sound + reset).
+    /// scene). Vertical layout per spec bag. 5: logo, primary Continue, secondary
+    /// Levels/Tema row; Tema opens the swatch popup, the top-right icon pair covers
+    /// mute and Pengaturan (sound + reset).
     /// </summary>
     public class HomeScreen : MonoBehaviour
     {
         [Header("Wired in scene")]
-        public TMP_Text Subtitle;
-        public Button ContinueBtn, SelectBtn, SoundBtn, ResetBtn, ThemesHeader;
-        public Button ThemeBtn;            // spec: third stacked menu button, opens the theme cards popup
+        public Button ContinueBtn, SelectBtn, SoundBtn, ResetBtn;   // ResetBtn = tombol Settings (gear)
+        public Image ContinueIcon;         // ikon play 56×56 di dalam ContinueBtn
+        public Button ThemeBtn;            // tombol sekunder baris bawah, membuka kartu tema
         public Button[] ThemeSwatches;     // kartu tematik Theme0..4 (spec: 5 kartu horizontal; diadaptasi 332×465)
         public GameObject ConfirmDialog;
         public Button ConfirmYes, ConfirmNo;
@@ -29,7 +30,7 @@ namespace GridCut.Game
         public Image MuteIcon, MuteIconOff, GearIcon, ThemeCard, SettingsCard;   // sprite ikon Kenney di Assets/Game/UI
         public TMP_Text ThemeTitle, SettingsTitle;
 
-        Action<Color> _textTint, _popupTint, _primaryTint, _mutedTint, _frameTint;
+        Action<Color> _textTint, _popupTint, _primaryTint, _frameTint;
         RectTransform _logoRow;             // huruf logo GRIDCUT (dibake runtime)
         Image[] _logoTiles;                 // [i] = ubin huruf ke-i
         Action<Color>[] _logoTints;         // langganan warna keping per huruf (Rect i%6)
@@ -60,8 +61,6 @@ namespace GridCut.Game
             _textTint = c =>
             {
                 Tint("SelectBtn", SelectBtn, c);
-                Tint("SoundBtn", SoundBtn, c);
-                Tint("ResetBtn", ResetBtn, c);
                 Tint("ThemeBtn", ThemeBtn, c);
                 if (MuteIcon != null) MuteIcon.color = c;
                 if (MuteIconOff != null) MuteIconOff.color = c;
@@ -77,8 +76,14 @@ namespace GridCut.Game
                 if (ThemeCard != null) ThemeCard.color = c;
                 if (SettingsCard != null) SettingsCard.color = c;
             };
-            _primaryTint = _ => UiFactory.PrimaryTint(ContinueBtn, -16f);
-            _mutedTint = c => { if (Subtitle != null) Subtitle.color = c; };   // subjudul = Teks redup
+            _primaryTint = _ =>
+            {
+                UiFactory.PrimaryTint(ContinueBtn, -16f);
+                // ikon play mengikuti kontras label (bag. 4: teks auto-kontras di Utama)
+                if (ContinueIcon != null)
+                    ContinueIcon.color = ThemeApplier.ContrastTextOn(
+                        ThemeApplier.ColorOf(ThemeApplier.Role.Primary));
+            };
             _frameTint = _ =>
             {
                 UiFactory.FrameTint(SelectBtn, false);   // sekunder (Levels)
@@ -102,7 +107,6 @@ namespace GridCut.Game
             // applyImmediately: re-tint from the current theme on every appearance
             ThemeApplier.Subscribe(ThemeApplier.Role.Text, _textTint, true);
             ThemeApplier.Subscribe(ThemeApplier.Role.Primary, _primaryTint, true);
-            ThemeApplier.Subscribe(ThemeApplier.Role.TextMuted, _mutedTint, true);
             ThemeApplier.Subscribe(ThemeApplier.Role.GridLine, _frameTint, true);
             ThemeApplier.Subscribe(ThemeApplier.Role.CellEmpty, _frameTint, true);
             ThemeApplier.Subscribe(ThemeApplier.Role.CellEmpty, _popupTint, true);
@@ -116,7 +120,6 @@ namespace GridCut.Game
             ThemeApplier.Unsubscribe(_textTint);
             ThemeApplier.Unsubscribe(_popupTint);
             ThemeApplier.Unsubscribe(_primaryTint);
-            ThemeApplier.Unsubscribe(_mutedTint);
             ThemeApplier.Unsubscribe(_frameTint);
             if (_logoTints != null)
                 foreach (var cb in _logoTints) ThemeApplier.Unsubscribe(cb);
@@ -130,13 +133,8 @@ namespace GridCut.Game
         /// <summary>Recovers scene refs by child name when serialized wiring fails.</summary>
         void AutoWire()
         {
-            var t = transform;
-            if (Subtitle == null)
-            {
-                var sub = t.Find("Sub");
-                if (sub != null) Subtitle = sub.GetComponentInChildren<TMP_Text>(true);
-            }
             if (ContinueBtn == null) ContinueBtn = UiFactory.Wire<Button>(this, null, "ContinueBtn");
+            if (ContinueIcon == null) ContinueIcon = UiFactory.Wire<Image>(this, ContinueIcon, "ContinueBtn/Icon");
             if (SelectBtn == null) SelectBtn = UiFactory.Wire<Button>(this, null, "SelectBtn");
             if (ThemeBtn == null) ThemeBtn = UiFactory.Wire<Button>(this, null, "ThemeBtn");
             if (SoundBtn == null) SoundBtn = UiFactory.Wire<Button>(this, null, "SoundBtn");
@@ -197,8 +195,6 @@ namespace GridCut.Game
                 if (level <= 1) cont.text = "Play";
                 else cont.text = $"Lanjutkan \u00b7 Level {level}";
             }
-            var snd = LabelOf(SoundBtn);
-            if (snd != null) snd.text = SaveStore.SoundOn ? "Suara: nyala" : "Suara: mati";
         }
 
         public void ToggleSound()
@@ -210,7 +206,7 @@ namespace GridCut.Game
             AudioService.Play("tap");
         }
 
-        // ------------------ bottom-right icon pair (spec Menu utama) ------------------
+        // ------------------ top-right icon pair (spec bag. 5) ------------------
         // GO "Icon" sudah dibake di scene lengkap dengan sprite PNG; kode hanya
         // menukar sprite Mute saat state suara berubah.
 
@@ -330,10 +326,13 @@ namespace GridCut.Game
                 // huruf sudah bake di scene (truktur statis) — cukup ambil rujukannya
                 _logoRow = (RectTransform)rowT;
                 _logoTiles = new Image[7];
+                _logoTints = new Action<Color>[7];
                 for (int i = 0; i < 7; i++)
                 {
                     var t = _logoRow.Find($"letter{i}");
                     _logoTiles[i] = t != null ? t.GetComponent<Image>() : null;
+                    int li = i;
+                    _logoTints[i] = _ => LogoTint(li);
                 }
                 return;
             }
