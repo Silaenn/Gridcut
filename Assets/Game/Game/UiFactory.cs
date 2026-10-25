@@ -179,30 +179,12 @@ namespace GridCut.Game
         }
 
         /// <summary>Keadaan tombol: ditekan turun (|dy| - 4) px & bayangan menyusut ke -4
-        /// dalam 100 ms; nonaktif = CanvasGroup alpha 0,45 (dikerjakan ButtonFX). Tombol
-        /// yang jadi anak langsung LayoutGroup dibungkus "PressSeat" agar offset tekan
-        /// tidak ditimpa layout.</summary>
+        /// dalam 100 ms; nonaktif = CanvasGroup alpha 0,45 (dikerjakan ButtonFX).
+        /// Tombol yang berada di bawah LayoutGroup memakai "PressSeat" yang sudah
+        /// di-bake di scene supaya offset tekan tidak ditimpa layout.</summary>
         public static void PressFx(Button b, float shadowDy)
         {
             if (b == null) return;
-            var host = (RectTransform)b.transform;
-            var pr = host.parent as RectTransform;
-            if (pr != null && pr.GetComponent<LayoutGroup>() != null && pr.name != "PressSeat")
-            {
-                var seatGo = new GameObject("PressSeat", typeof(RectTransform));
-                seatGo.layer = host.gameObject.layer;
-                var seat = (RectTransform)seatGo.transform;
-                seat.SetParent(pr, false);
-                seat.anchorMin = host.anchorMin;
-                seat.anchorMax = host.anchorMax;
-                seat.pivot = host.pivot;
-                seat.anchoredPosition = host.anchoredPosition;
-                seat.sizeDelta = host.sizeDelta;
-                host.SetParent(seat, false);
-                host.anchorMin = new Vector2(0.5f, 0.5f);
-                host.anchorMax = new Vector2(0.5f, 0.5f);
-                host.anchoredPosition = Vector2.zero;
-            }
             var fx = b.GetComponent<ButtonFX>();
             if (fx == null) fx = b.gameObject.AddComponent<ButtonFX>();
             fx.ShadowDy = shadowDy;

@@ -42,6 +42,7 @@ namespace GridCut.Game
 
         IAdService _ads;
         Action<Color> _bgTint;
+        BgDecor _decor;
 
         void Awake() => Instance = this;
 
@@ -63,6 +64,7 @@ namespace GridCut.Game
             {
                 _bgTint = c => Background.color = c;
                 ThemeApplier.Subscribe(ThemeApplier.Role.Background, _bgTint, true);
+                _decor = Background.GetComponent<BgDecor>();
             }
             Application.targetFrameRate = 60;
 
@@ -143,6 +145,7 @@ namespace GridCut.Game
                 return;
             }
             ShowOnly(go);
+            if (_decor != null) _decor.SetBoxesVisible(id == ScreenId.Home);
 
             // per-screen refresh; Gameplay refreshes via StartLevel (needs levelId)
             switch (id)

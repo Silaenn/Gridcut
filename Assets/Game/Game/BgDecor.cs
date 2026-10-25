@@ -69,6 +69,17 @@ namespace GridCut.Game
             if (_tint != null) ThemeApplier.Unsubscribe(_tint);
         }
 
+        /// <summary>Kotak dekorasi hanya tampil di menu utama (spec); layar lain
+        /// menyembunyikannya tanpa mengubah data bake di scene.</summary>
+        public void SetBoxesVisible(bool show)
+        {
+            for (int i = 0; i < _boxes.Count; i++)
+            {
+                var go = _boxes[i].Rt.gameObject;
+                if (go.activeSelf != show) go.SetActive(show);
+            }
+        }
+
         void Update()
         {
             float t = Time.unscaledTime;

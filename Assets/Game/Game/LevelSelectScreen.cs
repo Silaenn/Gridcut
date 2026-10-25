@@ -1,29 +1,42 @@
 using System;
 using System.Collections;
 using UnityEngine;
+using UnityEngine.EventSystems;
 using UnityEngine.UI;
 using TMPro;
 
 namespace GridCut.Game
 {
     /// <summary>
-    /// Level select (scene component). Paged 45-button grid populated at runtime from
-    /// SaveStore progress; static chrome (page label, arrows, back) is wired in scene.
+    /// Level select (scene component) — spec bagian 6. Kisi 5×3 (15 ubin) x 10 halaman,
+    /// header dengan tombol kembali ikon, titik halaman, panah kiri/kanan, geser layar.
+    /// Ubin sudah di-bake di scene; kelas ini hanya menyambung input dan mengecat state.
     /// </summary>
     public class LevelSelectScreen : MonoBehaviour
     {
         [Header("Wired in scene")]
-        public TMP_Text PageLabel;
         public TMP_Text SelTitle;           // header "Pilih Level"
         public Button PrevBtn, NextBtn, BackBtn;
-        public Image PrevIcon, NextIcon;    // panah halaman Kenney (diwarnai warna teks tema)
-        public RectTransform GridContent;   // GridLayoutGroup
+        public Image PrevIcon, NextIcon;    // panah halaman Kenney
+        public Image BackIcon;              // panah kiri di tombol kembali
+        public RectTransform GridContent;   // GridLayoutGroup 5 kolom
+
+        const int PerPage = 15;             // 5 kolom × 3 baris
+        const float ArrowDim = 0.45f;       // alpha panah nonaktif (spec)
+        const float SwipeMin = 100f;        // jarak geser minimum (px kanvas)
+        const float FlipSeconds = 0.18f;    // transisi halaman (panah & geser sama)
 
         int _page;
-        const int PerPage = 15;             // spec: kisi 5 x 3
-        RectTransform _dots;                // PageDots bake scene (indikator halaman)
+        RectTransform _dots;
         Image[] _dotImgs;
-        Action<Color> _textTint, _frameTint, _dotsTint, _mutedTint;
+        CanvasGroup _gridGroup, _prevGroup, _nextGroup;
+        Transform _activeGlow;
+        Coroutine _transition, _pulse;
+        float _suppressClickUntil;
+
+        Action<Color> _textTint, _frameTint, _dotsTint;
+
+        static int PageCount => Mathf.Max(1, Mathf.CeilToInt(SaveStore.LevelCount / (float)PerPage));
 
         void Awake()
         {
@@ -31,13 +44,14 @@ namespace GridCut.Game
             PrevBtn.onClick.AddListener(Prev);
             NextBtn.onClick.AddListener(Next);
             BackBtn.onClick.AddListener(Back);
+
             _textTint = c =>
             {
                 if (SelTitle != null) SelTitle.color = c;
                 if (PrevIcon != null) PrevIcon.color = c;
                 if (NextIcon != null) NextIcon.color = c;
+                if (BackIcon != null) BackIcon.color = c;
             };
-            _mutedTint = c => { if (PageLabel != null) PageLabel.color = c; };   // "1 / 3" = subjudul
             _frameTint = _ =>
             {
                 UiFactory.FrameTint(PrevBtn, true);
@@ -45,14 +59,16 @@ namespace GridCut.Game
                 UiFactory.FrameTint(BackBtn, true);
             };
             _dotsTint = _ => RepaintDots();
-            // keadaan tombol (spec): tekan-turun + alpha nonaktif
+
+            // keadaan tombol (spec): tekan turun; alpha nonaktif diatur lewat CanvasGroup
             UiFactory.PressFx(PrevBtn, -12f);
             UiFactory.PressFx(NextBtn, -12f);
             UiFactory.PressFx(BackBtn, -12f);
 
-            // ubin bake scene: 15 slot dengan struktur statis — klik disambungkan
-            // sekali di sini (state/warna diputikkan PaintTile tiap halaman)
-            if (GridContent != null && GridContent.childCount > 0)
+            // ubin bake scene: klik + geser disambungkan sekali di sini
+            if (GridContent != null)
+            {
+                AttachSwipe(GridContent);
                 for (int s = 0; s < GridContent.childCount; s++)
                 {
                     var b = (GridContent.GetChild(s) as RectTransform)
@@ -60,48 +76,55 @@ namespace GridCut.Game
                     if (b == null) continue;
                     int slot = s;
                     b.onClick.AddListener(() => OnTileTap(slot));
+                    AttachSwipe(b.transform);
                 }
+            }
         }
 
         void OnEnable()
         {
-            // applyImmediately re-tints PageLabel from the current theme on appearance
             ThemeApplier.Subscribe(ThemeApplier.Role.Text, _textTint, true);
-            ThemeApplier.Subscribe(ThemeApplier.Role.TextMuted, _mutedTint, true);
             ThemeApplier.Subscribe(ThemeApplier.Role.GridLine, _frameTint, true);
             ThemeApplier.Subscribe(ThemeApplier.Role.CellEmpty, _frameTint, true);
             ThemeApplier.Subscribe(ThemeApplier.Role.Accent, _dotsTint, true);
             ThemeApplier.Subscribe(ThemeApplier.Role.GridLine, _dotsTint, true);
+
+            if (_pulse == null) _pulse = StartCoroutine(PulseActive());
         }
 
         void OnDisable()
         {
             ThemeApplier.Unsubscribe(_textTint);
-            ThemeApplier.Unsubscribe(_mutedTint);
             ThemeApplier.Unsubscribe(_frameTint);
             ThemeApplier.Unsubscribe(_dotsTint);
+
+            if (_pulse != null) { StopCoroutine(_pulse); _pulse = null; }
+            if (_transition != null) { StopCoroutine(_transition); _transition = null; }
         }
 
         /// <summary>Recovers scene refs by child name when serialized wiring fails.</summary>
         void AutoWire()
         {
             var t = transform;
-            if (PageLabel == null)
-            {
-                var p = t.Find("PageLabel");
-                if (p != null) PageLabel = p.GetComponentInChildren<TMP_Text>(true);
-            }
             if (SelTitle == null) SelTitle = UiFactory.Wire<TMP_Text>(this, SelTitle, "SelTitle");
             if (PrevBtn == null) PrevBtn = UiFactory.Wire<Button>(this, null, "PrevBtn");
             if (NextBtn == null) NextBtn = UiFactory.Wire<Button>(this, null, "NextBtn");
             if (BackBtn == null) BackBtn = UiFactory.Wire<Button>(this, null, "BackBtn");
             if (PrevIcon == null) PrevIcon = UiFactory.Wire<Image>(this, null, "PrevBtn/Icon");
             if (NextIcon == null) NextIcon = UiFactory.Wire<Image>(this, null, "NextBtn/Icon");
+            if (BackIcon == null) BackIcon = UiFactory.Wire<Image>(this, null, "BackBtn/Icon");
             if (GridContent == null)
             {
                 var g = t.Find("Grid");
                 if (g != null) GridContent = g.GetComponent<RectTransform>();
             }
+            if (GridContent != null && _gridGroup == null)
+                _gridGroup = GridContent.GetComponent<CanvasGroup>();
+            if (PrevBtn != null && _prevGroup == null)
+                _prevGroup = PrevBtn.GetComponent<CanvasGroup>();
+            if (NextBtn != null && _nextGroup == null)
+                _nextGroup = NextBtn.GetComponent<CanvasGroup>();
+
             if (_dots == null)
             {
                 _dots = t.Find("PageDots") as RectTransform;
@@ -114,41 +137,59 @@ namespace GridCut.Game
             }
         }
 
-        public void Prev() { _page = Mathf.Max(0, _page - 1); Populate(); AudioService.Play("tap"); }
-        public void Next()
-        {
-            int pages = Mathf.CeilToInt(SaveStore.LevelCount / (float)PerPage);
-            _page = Mathf.Min(pages - 1, _page + 1);
-            Populate();
-            AudioService.Play("tap");
-        }
+        // ------------------------------ navigasi halaman ------------------------------
+
+        public void Prev() => GoToPage(-1);
+        public void Next() => GoToPage(1);
         public void Back() => AppRoot.Instance.NavBack();
 
+        /// <summary>Panah dan geser memakai transisi yang sama (spec).</summary>
+        void GoToPage(int dir)
+        {
+            int target = Mathf.Clamp(_page + dir, 0, PageCount - 1);
+            if (target == _page) return;
+            AudioService.Play("tap");
+            if (_transition != null) StopCoroutine(_transition);
+            _transition = StartCoroutine(PageFlip(target, dir));
+        }
+
+        IEnumerator PageFlip(int target, int dir)
+        {
+            _page = target;
+            Populate();
+            if (_gridGroup == null || GridContent == null) { _transition = null; yield break; }
+
+            var rt = GridContent;
+            float restY = rt.anchoredPosition.y;
+            for (float t = 0f; t < 1f;)
+            {
+                t = Mathf.Clamp01(t + Time.unscaledDeltaTime / FlipSeconds);
+                float e = 1f - Mathf.Pow(1f - t, 3f);          // ease-out
+                _gridGroup.alpha = e;
+                rt.anchoredPosition = new Vector2(Mathf.Lerp(dir * 48f, 0f, e), restY);
+                yield return null;
+            }
+            _gridGroup.alpha = 1f;
+            rt.anchoredPosition = new Vector2(0f, restY);
+            _transition = null;
+        }
+
+        /// <summary>Buka halaman yang memuat level aktif (spec).</summary>
         public void Show()
         {
-            _page = (SaveStore.UnlockedLevel - 1) / PerPage;
+            _page = Mathf.Clamp((SaveStore.UnlockedLevel - 1) / PerPage, 0, PageCount - 1);
+            if (_transition != null) { StopCoroutine(_transition); _transition = null; }
+            if (_gridGroup != null) _gridGroup.alpha = 1f;
+            if (GridContent != null)
+                GridContent.anchoredPosition = new Vector2(0f, GridContent.anchoredPosition.y);
             Populate();
         }
 
         void Populate()
         {
+            if (GridContent == null) return;
+
             int start = _page * PerPage + 1;
-            int end = Mathf.Min(start + PerPage - 1, SaveStore.LevelCount);
-            int pages = Mathf.CeilToInt(SaveStore.LevelCount / (float)PerPage);
-            PageLabel.text = $"{_page + 1} / {pages}";
-            RepaintDots();
-
-            if (GridContent.childCount == 0)
-            {
-                // fallback: scene belum bake — bangun ubin runtime seperti dulu
-                for (int i = GridContent.childCount - 1; i >= 0; i--)
-                    Destroy(GridContent.GetChild(i).gameObject);
-                for (int id = start; id <= end; id++)
-                    Tile(id.ToString(), id);
-                return;
-            }
-
-            // slot bake scene: struktur statis, hanya state/warna/teks yang diganti
             for (int s = 0; s < GridContent.childCount; s++)
             {
                 var seat = (RectTransform)GridContent.GetChild(s);
@@ -157,10 +198,34 @@ namespace GridCut.Game
                 seat.gameObject.SetActive(show);
                 if (show) PaintTile(seat, id);
             }
+
+            _activeGlow = null;
+            int slot = SaveStore.UnlockedLevel - start;
+            if (slot >= 0 && slot < GridContent.childCount)
+            {
+                var seat = GridContent.GetChild(slot);
+                if (seat.gameObject.activeSelf) _activeGlow = seat.Find("Glow");
+            }
+
+            RepaintDots();
+            UpdateArrows();
         }
 
-        /// <summary>Titik halaman (spec): aktif warna Aksen, lainnya Tepi (GridLine);
-        /// jumlah titik bake = jumlah halaman (150 level / 15 per halaman = 10).</summary>
+        void UpdateArrows()
+        {
+            SetArrow(_prevGroup, _page > 0);
+            SetArrow(_nextGroup, _page < PageCount - 1);
+        }
+
+        void SetArrow(CanvasGroup group, bool on)
+        {
+            if (group == null) return;
+            group.alpha = on ? 1f : ArrowDim;
+            group.interactable = on;
+            group.blocksRaycasts = on;
+        }
+
+        /// <summary>Titik halaman (spec): aktif Aksen, lainnya Tepi.</summary>
         void RepaintDots()
         {
             if (_dotImgs == null) return;
@@ -172,6 +237,7 @@ namespace GridCut.Game
 
         void OnTileTap(int slotIdx)
         {
+            if (Time.unscaledTime < _suppressClickUntil) return;
             int id = _page * PerPage + slotIdx + 1;
             if (id < 1 || id > SaveStore.LevelCount) return;
             var seat = (RectTransform)GridContent.GetChild(slotIdx);
@@ -185,11 +251,50 @@ namespace GridCut.Game
             AppRoot.Instance.StartLevel(id);
         }
 
-        /// <summary>Warnai ubin bake sesuai state level (spec bagian ubin):
-        /// Selesai = akar Tepi + Fill Permukaan + shadow Tepi, angka Teks,
-        /// bintang Utama/Tepi. Aktif = akar Aksen + shadow bayangan Aksen +
-        /// Glow, angka auto-kontras, bintang kosong Latar. Terkunci = warna
-        /// Ubin terkunci + gembok (tanpa shadow/angka/bintang).</summary>
+        // ------------------------------ geser & denyut ------------------------------
+
+        void AttachSwipe(Transform t)
+        {
+            if (t == null || t.GetComponent<SwipeRelay>() != null) return;
+            t.gameObject.AddComponent<SwipeRelay>().Owner = this;
+        }
+
+        public void OnSwipeEnd(Vector2 delta)
+        {
+            if (Mathf.Abs(delta.x) < SwipeMin || Mathf.Abs(delta.x) <= Mathf.Abs(delta.y)) return;
+            _suppressClickUntil = Time.unscaledTime + 0.25f;   // jangan buka ubin setelah geser
+            GoToPage(delta.x < 0f ? 1 : -1);                   // geser kiri = halaman berikutnya
+        }
+
+        /// <summary>Spec bagian 8: ubin aktif berdenyut pelan (Glow membesar & memudar).</summary>
+        IEnumerator PulseActive()
+        {
+            float t = 0f;
+            while (true)
+            {
+                t += Time.unscaledDeltaTime;
+                float k = 0.5f + 0.5f * Mathf.Sin(t * 2.2f - Mathf.PI * 0.5f);
+                if (_activeGlow != null)
+                {
+                    var img = _activeGlow.GetComponent<Image>();
+                    if (img != null)
+                    {
+                        var c = img.color;
+                        c.a = Mathf.Lerp(0.16f, 0.34f, k);
+                        img.color = c;
+                    }
+                    _activeGlow.localScale = Vector3.one * Mathf.Lerp(1f, 1.02f, k);
+                }
+                yield return null;
+            }
+        }
+
+        // ------------------------------ resep ubin level ------------------------------
+
+        /// <summary>Warnai ubin bake sesuai state (spec bagian 3):
+        /// Selesai = akar Tepi + Fill Permukaan + shadow Tepi, angka Teks, bintang
+        /// Utama/Tepi. Aktif = akar Aksen + shadow bayangan Aksen + Glow, angka
+        /// auto-kontras, bintang kosong Latar. Terkunci = warna Ubin terkunci, gembok.</summary>
         void PaintTile(RectTransform seat, int id)
         {
             var btnT = seat.Find("Btn");
@@ -199,18 +304,27 @@ namespace GridCut.Game
             var glow = seat.Find("Glow");
             var fill = btnT.Find("Fill");
             var fillImg = fill != null ? fill.GetComponent<Image>() : null;
-            var num = btnT.Find("num") != null ? btnT.Find("num").GetComponent<TMP_Text>() : null;
-            var numGo = btnT.Find("num") != null ? btnT.Find("num").gameObject : null;
-            var rowGo = btnT.Find("stars") != null ? btnT.Find("stars").gameObject : null;
-            var lockGo = btnT.Find("lock") != null ? btnT.Find("lock").gameObject : null;
-            var lockImg = btnT.Find("lock") != null ? btnT.Find("lock").GetComponent<Image>() : null;
+            var content = btnT.Find("Content");
+            var numT = content != null ? content.Find("num") : btnT.Find("num");
+            var rowT = content != null ? content.Find("stars") : btnT.Find("stars");
+            var num = numT != null ? numT.GetComponent<TMP_Text>() : null;
+            var numGo = numT != null ? numT.gameObject : null;
+            var rowGo = rowT != null ? rowT.gameObject : null;
+            var lockT = btnT.Find("lock");
+            var lockGo = lockT != null ? lockT.gameObject : null;
+            var lockImg = lockT != null ? lockT.GetComponent<Image>() : null;
 
             bool locked = id > SaveStore.UnlockedLevel;
             bool active = id == SaveStore.UnlockedLevel;
 
-            if (glow != null) glow.gameObject.SetActive(active);
+            if (glow != null)
+            {
+                glow.gameObject.SetActive(active);
+                if (active) glow.localScale = Vector3.one;
+            }
             if (lockGo != null) lockGo.SetActive(locked);
             if (fill != null) fill.gameObject.SetActive(!locked && !active);
+            if (content != null) content.gameObject.SetActive(!locked);
             if (numGo != null) numGo.SetActive(!locked);
             if (rowGo != null) rowGo.SetActive(!locked);
             if (shadow != null) shadow.enabled = !locked;
@@ -233,132 +347,13 @@ namespace GridCut.Game
                 num.color = active ? ThemeApplier.ContrastTextOn(accent)
                     : ThemeApplier.ColorOf(ThemeApplier.Role.Text);
             if (rowGo != null)
-                UiFactory.SetStars(rowGo.transform, SaveStore.BestStars(id),
+                UiFactory.SetStars(rowGo.transform, active ? 0 : SaveStore.BestStars(id),
                     ThemeApplier.ColorOf(ThemeApplier.Role.Primary),
                     active ? ThemeApplier.ColorOf(ThemeApplier.Role.Background)
-                           : ThemeApplier.ColorOf(ThemeApplier.Role.GridLine));   // terisi Utama; kosong: Latar (aktif) / Tepi (selesai)
+                           : ThemeApplier.ColorOf(ThemeApplier.Role.GridLine));
         }
 
-        // ------------------------------ resep ubin level ------------------------------
-
-        /// <summary>Ubin level 224×224 (spec). Selesai: berbingkai — akar Tepi
-        /// (radius 44) + Fill Permukaan (radius 38, margin 6) + shadow (0,-12) Tepi,
-        /// angka Bold 80 warna Teks, bintang (diperoleh = Utama, belum = Tepi).
-        /// Aktif: akar Aksen (radius 44) + shadow (0,-12) bayangan Aksen, Glow Aksen
-        /// α0,3 radius 56 ×1,0 dengan ukuran +12 px tiap sisi di belakang, angka
-        /// auto-kontras, bintang belum diperoleh = Latar. Terkunci: warna Ubin
-        /// terkunci tanpa bingkai/shadow; hanya gembok 64×64 warna Gembok.</summary>
-        void Tile(string label, int levelId)
-        {
-            var rounded = AppRoot.Instance != null ? AppRoot.Instance.Rounded : null;
-            bool locked = levelId > SaveStore.UnlockedLevel;
-            bool active = levelId == SaveStore.UnlockedLevel;
-
-            // Seat menampung Glow (state aktif saja) di belakang Btn; grid mengatur
-            // posisi sel per halaman
-            var seatGo = new GameObject(label, typeof(RectTransform));
-            var seat = (RectTransform)seatGo.transform;
-            seat.SetParent(GridContent, false);
-            seat.sizeDelta = new Vector2(224f, 224f);
-
-            var go = new GameObject("Btn", typeof(RectTransform), typeof(Button), typeof(Image));
-            var root = (RectTransform)go.transform;
-            root.SetParent(seat, false);
-            root.anchorMin = root.anchorMax = new Vector2(0.5f, 0.5f);
-            root.sizeDelta = new Vector2(224f, 224f);
-            var btn = go.GetComponent<Button>();
-            var img = go.GetComponent<Image>();
-            if (rounded != null)
-            {
-                img.sprite = rounded;
-                img.type = UnityEngine.UI.Image.Type.Sliced;
-                img.pixelsPerUnitMultiplier = 1.27f;          // radius 44 (56/1,27)
-            }
-
-            if (locked)
-            {
-                img.color = ThemeApplier.ColorOf(ThemeApplier.Role.Locked);
-                var lockImg = UiFactory.Image(root, "lock", ThemeApplier.ColorOf(ThemeApplier.Role.Lock));
-                lockImg.sprite = AppRoot.Instance.Padlock;    // PNG gembok, di-wire di AppRoot
-                lockImg.preserveAspect = true;
-                var lrt = (RectTransform)lockImg.transform;
-                lrt.anchorMin = lrt.anchorMax = new Vector2(0.5f, 0.5f);
-                lrt.sizeDelta = new Vector2(64f, 64f);        // spec: gembok 64×64
-                lrt.anchoredPosition = Vector2.zero;
-                btn.onClick.AddListener(() =>
-                {
-                    AudioService.Play("invalid");
-                    StartCoroutine(Shake(seat));
-                });
-                return;
-            }
-
-            var accent = ThemeApplier.ColorOf(ThemeApplier.Role.Accent);
-            var bold = AppRoot.Instance != null ? AppRoot.Instance.FontBold : null;
-            if (active)
-            {
-                // Glow Rounded Aksen α0,3, radius 56 ×1,0, +12 px tiap sisi, di belakang Btn
-                var glowC = accent; glowC.a = 0.3f;
-                var glow = UiFactory.Image(seat, "Glow", glowC);
-                if (rounded != null)
-                {
-                    glow.sprite = rounded;
-                    glow.type = UnityEngine.UI.Image.Type.Sliced;
-                    glow.pixelsPerUnitMultiplier = 1f;
-                }
-                var grt = glow.rectTransform;
-                grt.anchorMin = grt.anchorMax = new Vector2(0.5f, 0.5f);
-                grt.sizeDelta = new Vector2(248f, 248f);
-                grt.anchoredPosition = Vector2.zero;
-                img.color = accent;
-                UiFactory.ApplyShadow(img, new Vector2(0f, -12f), ThemeApplier.ColorOf(ThemeApplier.Role.ShadowAccent));
-                Face(root, levelId, ThemeApplier.ContrastTextOn(accent),
-                    ThemeApplier.ColorOf(ThemeApplier.Role.Primary),
-                    ThemeApplier.ColorOf(ThemeApplier.Role.Background), bold);
-            }
-            else
-            {
-                img.color = ThemeApplier.ColorOf(ThemeApplier.Role.GridLine);
-                UiFactory.ApplyShadow(img, new Vector2(0f, -12f), ThemeApplier.ColorOf(ThemeApplier.Role.GridLine));
-                var fill = UiFactory.Panel(root, "Fill", ThemeApplier.ColorOf(ThemeApplier.Role.CellEmpty),
-                    false, rounded, 1.47f);
-                fill.rectTransform.offsetMin = new Vector2(6f, 6f);
-                fill.rectTransform.offsetMax = new Vector2(-6f, -6f);
-                Face(fill.rectTransform, levelId, ThemeApplier.ColorOf(ThemeApplier.Role.Text),
-                    ThemeApplier.ColorOf(ThemeApplier.Role.Primary),
-                    ThemeApplier.ColorOf(ThemeApplier.Role.GridLine), bold);
-            }
-
-            int levelRef = levelId;
-            btn.onClick.AddListener(() =>
-            {
-                AudioService.Play("tap");
-                AppRoot.Instance.StartLevel(levelRef);
-            });
-        }
-
-        /// <summary>Angka Bold 80 + baris tiga bintang (32×32, jarak 8, 16 px di bawah angka).</summary>
-        void Face(Transform host, int levelId, Color numberColor, Color starOn, Color starOff,
-            TMP_FontAsset bold)
-        {
-            var t = UiFactory.Text(host, "num", levelId.ToString(), 80f, numberColor,
-                TextAlignmentOptions.Center);
-            if (bold != null) t.font = bold;
-            var nrt = t.rectTransform;
-            nrt.anchorMin = new Vector2(0f, 0.5f);
-            nrt.anchorMax = new Vector2(1f, 0.5f);
-            nrt.pivot = new Vector2(0.5f, 0.5f);
-            nrt.sizeDelta = new Vector2(0f, 80f);
-            nrt.anchoredPosition = new Vector2(0f, 20f);      // pusat angka sedikit di atas tengah
-
-            var row = UiFactory.StarRow(host, "stars");
-            row.anchorMin = row.anchorMax = new Vector2(0.5f, 0.5f);
-            row.sizeDelta = new Vector2(112f, 32f);
-            row.anchoredPosition = new Vector2(0f, -52f);     // 16 px di bawah batas bawah angka
-            UiFactory.SetStars(row, SaveStore.BestStars(levelId), starOn, starOff);
-        }
-
-        /// <summary>Spec bagian 8: tap level terkunci menggetarkan tombol.</summary>
+        /// <summary>Spec bagian 8: tap level terkunci menggetarkan ubin.</summary>
         IEnumerator Shake(RectTransform rt)
         {
             var base0 = rt.anchoredPosition;
@@ -369,6 +364,20 @@ namespace GridCut.Game
                 yield return new WaitForSeconds(Step);
             }
             rt.anchoredPosition = base0;
+        }
+
+        /// <summary>Meneruskan drag dari area kosong kisi / ubin ke layar.</summary>
+        sealed class SwipeRelay : MonoBehaviour, IBeginDragHandler, IEndDragHandler
+        {
+            public LevelSelectScreen Owner;
+            Vector2 _start;
+
+            public void OnBeginDrag(PointerEventData eventData) => _start = eventData.position;
+
+            public void OnEndDrag(PointerEventData eventData)
+            {
+                if (Owner != null) Owner.OnSwipeEnd(eventData.position - _start);
+            }
         }
     }
 }

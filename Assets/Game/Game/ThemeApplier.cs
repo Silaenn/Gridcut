@@ -123,7 +123,9 @@ namespace GridCut.Game
             EnsureKeys();
             if (instant)
             {
-                foreach (var k in _cur.Keys) _cur[k] = BaseOf(k.Item1, k.Item2);
+                // salin kunci dulu: indexer Dictionary menaikkan versi enumerator
+                foreach (var k in new List<(Role, int)>(_cur.Keys))
+                    _cur[k] = BaseOf(k.Item1, k.Item2);
                 _t = 1f;
                 Fire();
                 return;
