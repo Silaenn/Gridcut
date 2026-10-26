@@ -18,6 +18,9 @@ namespace GridCut.Game
         public static bool SoundOn { get; private set; } = true;
         public static int ThemeIndex { get; private set; } = 0;
         public static bool ReduceMotion { get; private set; } = false;
+        public static int ThemesSeen { get; private set; } = 0;   // bitmask tema yang sudah dilihat
+        public static float MusicVolume { get; private set; } = 0.7f;
+        public static float SfxVolume { get; private set; } = 0.85f;
 
         static readonly Dictionary<int, int> _bestStars = new Dictionary<int, int>();
 
@@ -27,6 +30,9 @@ namespace GridCut.Game
             SoundOn = PlayerPrefs.GetInt("gc.sound", 1) == 1;
             ThemeIndex = Mathf.Clamp(PlayerPrefs.GetInt("gc.theme", 0), 0, ThemeLibrary.All.Length - 1);
             ReduceMotion = PlayerPrefs.GetInt("gc.motion", 0) == 1;
+            ThemesSeen = PlayerPrefs.GetInt("gc.themesSeen", 0);
+            MusicVolume = Mathf.Clamp01(PlayerPrefs.GetFloat("gc.music", 0.7f));
+            SfxVolume = Mathf.Clamp01(PlayerPrefs.GetFloat("gc.sfx", 0.85f));
             _bestStars.Clear();
             string packed = PlayerPrefs.GetString("gc.stars", "");
             if (packed.Length == 0) return;
@@ -136,13 +142,59 @@ namespace GridCut.Game
             PlayerPrefs.Save();
         }
 
+        public static void SetMusicVolume(float v)
+        {
+            MusicVolume = Mathf.Clamp01(v);
+            PlayerPrefs.SetFloat("gc.music", MusicVolume);
+            PlayerPrefs.Save();
+        }
+
+        public static void SetSfxVolume(float v)
+        {
+            SfxVolume = Mathf.Clamp01(v);
+            PlayerPrefs.SetFloat("gc.sfx", SfxVolume);
+            PlayerPrefs.Save();
+        }
+
+        /// <summary>Spec bagian 10 (opsional): titik di tombol Themes bila ada tema
+        /// baru yang terbuka tetapi belum pernah dilihat di popup.</summary>
+        public static bool HasUnseenTheme()
+        {
+            int unlocked = UnlockedLevel;
+            for (int i = 1; i < ThemeLibrary.All.Length; i++)
+            {
+                var th = ThemeLibrary.All[i];
+                bool open = unlocked > th.UnlockLevel || th.UnlockLevel <= 1;
+                if (open && (ThemesSeen & (1 << i)) == 0) return true;
+            }
+            return false;
+        }
+
+        public static void MarkThemesSeen()
+        {
+            int mask = ThemesSeen;
+            for (int i = 1; i < ThemeLibrary.All.Length; i++)
+            {
+                var th = ThemeLibrary.All[i];
+                bool open = UnlockedLevel > th.UnlockLevel || th.UnlockLevel <= 1;
+                if (open) mask |= 1 << i;
+            }
+            if (mask == ThemesSeen) return;
+            ThemesSeen = mask;
+            PlayerPrefs.SetInt("gc.themesSeen", ThemesSeen);
+            PlayerPrefs.Save();
+        }
+
         public static void ResetProgress()
         {
             UnlockedLevel = 1;
             _bestStars.Clear();
+            ThemesSeen = 0;
             PlayerPrefs.DeleteKey("gc.unlocked");
             PlayerPrefs.DeleteKey("gc.stars");
+            PlayerPrefs.DeleteKey("gc.themesSeen");
             PlayerPrefs.Save();
+            ClearPlayState();   // state level yang sedang berjalan ikut dihapus
         }
 
         static void PersistStars()

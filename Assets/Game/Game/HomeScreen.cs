@@ -24,12 +24,20 @@ namespace GridCut.Game
         public Button ConfirmYes, ConfirmNo;
 
         [Header("Scene-baked popups (dibake di Main.unity, bukan runtime)")]
-        public GameObject ThemePopup;      // Dim + Card + 5 swatch + Tutup
-        public GameObject SettingsPopup;   // Dim + Card + Suara / Reset Progres / Tutup
-        public Button ThemeCloseBtn, SettingsSoundBtn, SettingsResetBtn, SettingsCloseBtn;
-        public Button SettingsMotionBtn;   // opsi Kurangi gerakan
-        public Image MuteIcon, MuteIconOff, GearIcon, ThemeCard, SettingsCard;   // sprite ikon Kenney di Assets/Game/UI
-        public TMP_Text ThemeTitle, SettingsTitle;
+        public GameObject ThemePopup;      // Overlay: Backdrop + Panel
+        public GameObject SettingsPopup;   // Overlay: Backdrop + Panel
+        public Button ThemeCloseBtn, SettingsResetBtn, SettingsCloseBtn, ReplayTutorialBtn;
+        public Slider MusicSlider, SfxSlider;
+        public Toggle ReduceMotionToggle;
+        public RectTransform ReduceMotionKnob;
+        public Image ReduceMotionTrack;
+        public TMP_Text MusicLabel, SfxLabel, MotionLabel;
+        public Image MuteIcon, MuteIconOff, GearIcon, ThemeCard, SettingsCard;
+        public Image ConfirmCard;
+        public TMP_Text ThemeTitle, SettingsTitle, ConfirmQuestion;
+        public Image ConfirmWarning, ConfirmMarkBar, ConfirmMarkDot;
+        public GameObject ResetToast;
+        public Image ThemeNewDot;          // titik Aksen di tombol Themes (opsional bag. 10)
 
         Action<Color> _textTint, _popupTint, _primaryTint, _frameTint, _accentTint;
         RectTransform _logoRow;             // huruf logo GRIDCUT (dibake runtime)
@@ -39,6 +47,9 @@ namespace GridCut.Game
         // spec bagian 8: intro logo + tombol hanya sekali per sesi
         static bool _introPlayed;
         Coroutine _introCo;
+        Coroutine _lockedHint;
+        Coroutine _toastCo;
+        bool _themeRepaintPending;
         RectTransform[] _introLogos;
         Vector2[] _introLogoBase;
         Button[] _introBtns;
@@ -58,10 +69,36 @@ namespace GridCut.Game
             ResetBtn.onClick.AddListener(OpenSettings);          // Pengaturan hub; reset progres live there
             if (ThemeBtn != null) ThemeBtn.onClick.AddListener(ToggleThemePopup);
             if (ThemeCloseBtn != null) ThemeCloseBtn.onClick.AddListener(ToggleThemePopup);
-            if (SettingsSoundBtn != null) SettingsSoundBtn.onClick.AddListener(ToggleSound);
-            if (SettingsMotionBtn != null) SettingsMotionBtn.onClick.AddListener(ToggleReduceMotion);
             if (SettingsResetBtn != null) SettingsResetBtn.onClick.AddListener(OnSettingsReset);
             if (SettingsCloseBtn != null) SettingsCloseBtn.onClick.AddListener(CloseSettings);
+            if (ReplayTutorialBtn != null) ReplayTutorialBtn.onClick.AddListener(ReplayTutorial);
+            if (MusicSlider != null)
+            {
+                MusicSlider.wholeNumbers = false;
+                MusicSlider.minValue = 0f;
+                MusicSlider.maxValue = 1f;
+                MusicSlider.onValueChanged.AddListener(v => AudioService.SetMusicPreview(v));
+                AddSliderCommit(MusicSlider, v =>
+                {
+                    SaveStore.SetMusicVolume(v);
+                    AudioService.SetMusicPreview(v);
+                });
+            }
+            if (SfxSlider != null)
+            {
+                SfxSlider.wholeNumbers = false;
+                SfxSlider.minValue = 0f;
+                SfxSlider.maxValue = 1f;
+                SfxSlider.onValueChanged.AddListener(v => AudioService.SetSfxPreview(v));
+                AddSliderCommit(SfxSlider, v =>
+                {
+                    SaveStore.SetSfxVolume(v);
+                    AudioService.SetSfxPreview(v);
+                    AudioService.Play("tap");   // contoh level SFX setelah dilepas
+                });
+            }
+            if (ReduceMotionToggle != null)
+                ReduceMotionToggle.onValueChanged.AddListener(OnReduceMotionChanged);
             ConfirmYes.onClick.AddListener(ConfirmReset);
             ConfirmNo.onClick.AddListener(HideResetConfirm);
             for (int i = 0; i < ThemeSwatches.Length; i++)
@@ -81,18 +118,20 @@ namespace GridCut.Game
                 if (GearIcon != null) GearIcon.color = c;
                 if (ThemeTitle != null) ThemeTitle.color = c;
                 if (SettingsTitle != null) SettingsTitle.color = c;
-                // dialog reset: label mengikuti pola menu (teks gelap pada tombol aksen)
-                Tint("ConfirmYes", ConfirmYes, c);
-                Tint("ConfirmNo", ConfirmNo, c);
-                Tint("SettingsSoundBtn", SettingsSoundBtn, c);
-                Tint("SettingsMotionBtn", SettingsMotionBtn, c);
-                Tint("SettingsCloseBtn", SettingsCloseBtn, c);
-                Tint("ThemeCloseBtn", ThemeCloseBtn, c);
+                if (ConfirmQuestion != null) ConfirmQuestion.color = c;
+                if (MusicLabel != null) MusicLabel.color = c;
+                if (SfxLabel != null) SfxLabel.color = c;
+                if (MotionLabel != null) MotionLabel.color = c;
+                Tint("ReplayTutorialBtn", ReplayTutorialBtn, c);
+                Tint("SettingsResetBtn", SettingsResetBtn, c);
+                // label dialog konfirmasi diatur StyleConfirm (auto-kontras)
             };
-            _popupTint = c =>
+            _popupTint = _ =>
             {
-                if (ThemeCard != null) ThemeCard.color = c;
-                if (SettingsCard != null) SettingsCard.color = c;
+                // spec bagian 9: akar Tepi radius 56 + Fill Permukaan radius 50 + shadow (0,-20)
+                if (ThemeCard != null) UiFactory.CardTint(ThemeCard, -20f);
+                if (SettingsCard != null) UiFactory.CardTint(SettingsCard, -20f);
+                if (ConfirmCard != null) UiFactory.CardTint(ConfirmCard, -20f);
             };
             _primaryTint = _ =>
             {
@@ -101,6 +140,7 @@ namespace GridCut.Game
                 if (ContinueIcon != null)
                     ContinueIcon.color = ThemeApplier.ContrastTextOn(
                         ThemeApplier.ColorOf(ThemeApplier.Role.Primary));
+                StyleSettings();
             };
             _frameTint = _ =>
             {
@@ -108,10 +148,17 @@ namespace GridCut.Game
                 UiFactory.FrameTint(ThemeBtn, false);    // sekunder (Tema)
                 UiFactory.FrameTint(SoundBtn, true);     // ikon bulat
                 UiFactory.FrameTint(ResetBtn, true);     // gear = pengaturan
-                UiFactory.FrameTint(ThemeCloseBtn, false);
+                UiFactory.FrameTint(ThemeCloseBtn, true);
+                UiFactory.FrameTint(SettingsCloseBtn, true);
                 StyleSettings();
+                StyleConfirm();
             };
-            _accentTint = _ => StyleSettings();
+            _accentTint = c =>
+            {
+                if (ThemeNewDot != null) ThemeNewDot.color = c;
+                StyleSettings();
+                StyleConfirm();
+            };
             // keadaan tombol (spec): tekan-turun + alpha nonaktif
             UiFactory.PressFx(ContinueBtn, -16f);
             UiFactory.PressFx(SelectBtn, -12f);
@@ -141,6 +188,10 @@ namespace GridCut.Game
         void OnDisable()
         {
             if (_introCo != null) { StopCoroutine(_introCo); _introCo = null; }
+            if (_lockedHint != null) { StopCoroutine(_lockedHint); _lockedHint = null; }
+            if (_knobCo != null) { StopCoroutine(_knobCo); _knobCo = null; }
+            if (_toastCo != null) { StopCoroutine(_toastCo); _toastCo = null; }
+            if (ResetToast != null) ResetToast.SetActive(false);
             SetIntroFinal();   // jangan tinggalkan alpha/posisi di tengah animasi
             ThemeApplier.Unsubscribe(_textTint);
             ThemeApplier.Unsubscribe(_popupTint);
@@ -150,10 +201,22 @@ namespace GridCut.Game
             if (_logoTints != null)
                 foreach (var cb in _logoTints) ThemeApplier.Unsubscribe(cb);
             // never revive an overlay when Home reappears
-            if (ThemePopup != null) ThemePopup.SetActive(false);
-            if (SettingsPopup != null) SettingsPopup.SetActive(false);
-            // ConfirmReset kini di root Overlay (spec) — tidak ikut mati bersama Home
-            if (ConfirmDialog != null && ConfirmDialog.activeSelf) ConfirmDialog.SetActive(false);
+            HidePopupNow(ThemePopup);
+            HidePopupNow(SettingsPopup);
+            HidePopupNow(ConfirmDialog);
+        }
+
+        /// <summary>Repaint kartu tema selama transisi 300 ms agar cangkang, pil,
+        /// dan pratinjau ikut berubah mulus saat tema diganti dari popup.</summary>
+        void Update()
+        {
+            if (ThemePopup != null && ThemePopup.activeSelf && ThemeApplier.IsTransitioning)
+                RefreshThemeTint();
+            if (_themeRepaintPending && !ThemeApplier.IsTransitioning)
+            {
+                _themeRepaintPending = false;
+                RefreshThemeTint();
+            }
         }
 
         /// <summary>Recovers scene refs by child name when serialized wiring fails.</summary>
@@ -167,27 +230,59 @@ namespace GridCut.Game
             if (ResetBtn == null) ResetBtn = UiFactory.Wire<Button>(this, null, "ResetBtn");
             if (ThemePopup == null) ThemePopup = UiFactory.WireGo(this, ThemePopup, "ThemePopup");
             if (SettingsPopup == null) SettingsPopup = UiFactory.WireGo(this, SettingsPopup, "SettingsPopup");
-            if (ThemeCloseBtn == null) ThemeCloseBtn = UiFactory.Wire<Button>(this, ThemeCloseBtn, "ThemePopup/CloseBtn");
-            if (SettingsSoundBtn == null) SettingsSoundBtn = UiFactory.Wire<Button>(this, SettingsSoundBtn, "SettingsPopup/SetSoundBtn");
-            if (SettingsMotionBtn == null) SettingsMotionBtn = UiFactory.Wire<Button>(this, SettingsMotionBtn, "SettingsPopup/Card/SetMotionBtn");
-            if (SettingsResetBtn == null) SettingsResetBtn = UiFactory.Wire<Button>(this, SettingsResetBtn, "SettingsPopup/SetResetBtn");
-            if (SettingsCloseBtn == null) SettingsCloseBtn = UiFactory.Wire<Button>(this, SettingsCloseBtn, "SettingsPopup/SetCloseBtn");
+            if (ThemePopup == null) ThemePopup = RootGo("Overlay/ThemePopup");
+            if (SettingsPopup == null) SettingsPopup = RootGo("Overlay/SettingsPopup");
+            if (ThemeNewDot == null && ThemeBtn != null)
+            {
+                var d = ThemeBtn.transform.Find("ThemeNewDot");
+                if (d != null) ThemeNewDot = d.GetComponent<Image>();
+            }
+            if (ThemeCloseBtn == null) ThemeCloseBtn = WireRoot<Button>("Overlay/ThemePopup/Card/CloseBtn");
+            if (SettingsResetBtn == null) SettingsResetBtn = WireRoot<Button>("Overlay/SettingsPopup/Card/BottomRow/ResetSeat/SetResetBtn");
+            if (SettingsCloseBtn == null) SettingsCloseBtn = WireRoot<Button>("Overlay/SettingsPopup/Card/SetCloseBtn");
+            if (ReplayTutorialBtn == null) ReplayTutorialBtn = WireRoot<Button>("Overlay/SettingsPopup/Card/BottomRow/ReplaySeat/ReplayBtn");
+            if (MusicSlider == null) MusicSlider = WireRoot<Slider>("Overlay/SettingsPopup/Card/Rows/MusicRow/MusicSlider");
+            if (SfxSlider == null) SfxSlider = WireRoot<Slider>("Overlay/SettingsPopup/Card/Rows/SfxRow/SfxSlider");
+            if (ReduceMotionToggle == null) ReduceMotionToggle = WireRoot<Toggle>("Overlay/SettingsPopup/Card/Rows/MotionRow");
+            if (ReduceMotionKnob == null) ReduceMotionKnob = WireRoot<RectTransform>("Overlay/SettingsPopup/Card/Rows/MotionRow/Track/Knob");
+            if (ReduceMotionTrack == null) ReduceMotionTrack = WireRoot<Image>("Overlay/SettingsPopup/Card/Rows/MotionRow/Track");
+            if (MusicLabel == null) MusicLabel = WireRoot<TMP_Text>("Overlay/SettingsPopup/Card/Rows/MusicRow/Label");
+            if (SfxLabel == null) SfxLabel = WireRoot<TMP_Text>("Overlay/SettingsPopup/Card/Rows/SfxRow/Label");
+            if (MotionLabel == null) MotionLabel = WireRoot<TMP_Text>("Overlay/SettingsPopup/Card/Rows/MotionRow/Label");
             if (MuteIcon == null) MuteIcon = UiFactory.Wire<Image>(this, MuteIcon, "SoundBtn/Icon");
             if (MuteIconOff == null) MuteIconOff = UiFactory.Wire<Image>(this, MuteIconOff, "SoundBtn/IconOff");
             if (GearIcon == null) GearIcon = UiFactory.Wire<Image>(this, GearIcon, "ResetBtn/Icon");
-            if (ThemeCard == null) ThemeCard = UiFactory.Wire<Image>(this, ThemeCard, "ThemePopup/Card");
-            if (SettingsCard == null) SettingsCard = UiFactory.Wire<Image>(this, SettingsCard, "SettingsPopup/Card");
-            if (ThemeTitle == null) ThemeTitle = UiFactory.Wire<TMP_Text>(this, ThemeTitle, "ThemePopup/Card/CardTitle");
-            if (SettingsTitle == null) SettingsTitle = UiFactory.Wire<TMP_Text>(this, SettingsTitle, "SettingsPopup/Card/CardTitle");
+            if (ThemeCard == null) ThemeCard = WireRoot<Image>("Overlay/ThemePopup/Card");
+            if (SettingsCard == null) SettingsCard = WireRoot<Image>("Overlay/SettingsPopup/Card");
             if (ConfirmDialog == null) ConfirmDialog = UiFactory.WireGo(this, null, "ConfirmReset");
-            if (ConfirmYes == null) ConfirmYes = UiFactory.Wire<Button>(this, null, "ConfirmReset/Yes");
-            if (ConfirmNo == null) ConfirmNo = UiFactory.Wire<Button>(this, null, "ConfirmReset/No");
+            if (ConfirmDialog == null) ConfirmDialog = RootGo("Overlay/ConfirmReset");
+            if (ConfirmCard == null) ConfirmCard = WireRoot<Image>("Overlay/ConfirmReset/Card");
+            if (ConfirmCard == null && ConfirmDialog != null)
+            {
+                var c = ConfirmDialog.transform.Find("Card");
+                if (c != null) ConfirmCard = c.GetComponent<Image>();
+            }
+            if (ConfirmQuestion == null) ConfirmQuestion = WireRoot<TMP_Text>("Overlay/ConfirmReset/Card/Question");
+            if (ConfirmWarning == null) ConfirmWarning = WireRoot<Image>("Overlay/ConfirmReset/Card/WarningIcon");
+            if (ConfirmMarkBar == null) ConfirmMarkBar = WireRoot<Image>("Overlay/ConfirmReset/Card/WarningIcon/Mark/Bar");
+            if (ConfirmMarkDot == null) ConfirmMarkDot = WireRoot<Image>("Overlay/ConfirmReset/Card/WarningIcon/Mark/Dot");
+            if (ResetToast == null) ResetToast = RootGo("Overlay/ResetToast");
+            if (ConfirmQuestion == null && ConfirmDialog != null)
+            {
+                var q = ConfirmDialog.transform.Find("Card/Question");
+                if (q != null) ConfirmQuestion = q.GetComponent<TMP_Text>();
+            }
+            if (ThemeTitle == null) ThemeTitle = WireRoot<TMP_Text>("Overlay/ThemePopup/Card/CardTitle");
+            if (SettingsTitle == null) SettingsTitle = WireRoot<TMP_Text>("Overlay/SettingsPopup/Card/CardTitle");
+            if (ConfirmDialog == null) ConfirmDialog = UiFactory.WireGo(this, null, "ConfirmReset");
+            if (ConfirmYes == null) ConfirmYes = WireRoot<Button>("Overlay/ConfirmReset/Card/Yes");
+            if (ConfirmNo == null) ConfirmNo = WireRoot<Button>("Overlay/ConfirmReset/Card/No");
             if (ThemeSwatches == null || ThemeSwatches.Length == 0)
             {
                 var list = new List<Button>();
                 for (int i = 0; i < ThemeLibrary.All.Length; i++)
                 {
-                    var b = UiFactory.Wire<Button>(this, null, $"Theme{i}");
+                    var b = WireRoot<Button>($"Overlay/ThemePopup/Card/CardsRow/Theme{i}");
                     if (b != null) list.Add(b);
                 }
                 ThemeSwatches = list.ToArray();
@@ -196,6 +291,18 @@ namespace GridCut.Game
 
         static TMP_Text LabelOf(Button b) =>
             b != null ? b.GetComponentInChildren<TMP_Text>(true) : null;
+
+        GameObject RootGo(string path)
+        {
+            var t = transform.root.Find(path);
+            return t != null ? t.gameObject : null;
+        }
+
+        T WireRoot<T>(string path) where T : Component
+        {
+            var t = transform.root.Find(path);
+            return t != null ? t.GetComponentInChildren<T>(true) : null;
+        }
 
         static void Tint(string name, Button b, Color c)
         {
@@ -230,6 +337,7 @@ namespace GridCut.Game
             RefreshLabels();
             RefreshMuteIcon();
             RefreshSettingsLabels();
+            AudioService.RefreshMusicVolume();
             AudioService.Play("tap");
         }
 
@@ -246,13 +354,22 @@ namespace GridCut.Game
 
         // ------------------------------ theme popup ------------------------------
 
-        /// <summary>Tema: home button membuka/menutup dialog berisi kelima swatch.</summary>
+        /// <summary>Tema: home button membuka/menutup popup berisi kelima swatch.</summary>
         void ToggleThemePopup()
         {
-            if (ThemePopup == null) return;
-            bool show = !ThemePopup.activeSelf;
-            ThemePopup.SetActive(show);
-            if (show) RefreshThemeTint();   // status/nama/kotak warna segar tiap dibuka
+            var p = PopupOf(ThemePopup);
+            if (p == null) return;
+            if (p.IsOpen)
+            {
+                p.Hide();
+            }
+            else
+            {
+                p.Show();
+                RefreshThemeTint();           // setelah Show: CanvasGroup kartu sudah Awake
+                SaveStore.MarkThemesSeen();   // titik tema baru hilang setelah popup dibuka
+                RefreshThemeDot();
+            }
             AudioService.Play("tap");
         }
 
@@ -260,64 +377,212 @@ namespace GridCut.Game
 
         void OpenSettings()
         {
-            if (SettingsPopup == null) return;
+            var p = PopupOf(SettingsPopup);
+            if (p == null) return;
             RefreshSettingsLabels();
-            SettingsPopup.SetActive(true);
+            p.Show();
             AudioService.Play("tap");
         }
 
         void CloseSettings()
         {
-            SettingsPopup.SetActive(false);
+            // jaring pengaman bila popup ditutup saat slider masih di-drag
+            if (MusicSlider != null) SaveStore.SetMusicVolume(MusicSlider.value);
+            if (SfxSlider != null) SaveStore.SetSfxVolume(SfxSlider.value);
+            var p = PopupOf(SettingsPopup);
+            if (p != null) p.Hide();
             AudioService.Play("tap");
         }
 
-        /// <summary>Pengaturan → Reset Progres: tutup popup lalu tampilkan dialog konfirmasi.</summary>
+        /// <summary>Replay tutorial: tutup Pengaturan lalu buka Level 1 (tutorial).
+        /// Tidak menyentuh progres/bintang yang sudah ada.</summary>
+        void ReplayTutorial()
+        {
+            var p = PopupOf(SettingsPopup);
+            if (p != null) p.HideImmediate();
+            AudioService.Play("tap");
+            AppRoot.Instance.StartLevel(1);
+        }
+
+        /// <summary>Pengaturan → Reset Progress: Pengaturan tetap terbuka di belakang,
+        /// Konfirmasi muncul sebagai popup di atasnya (dua backdrop bertumpuk).</summary>
         void OnSettingsReset()
         {
-            SettingsPopup.SetActive(false);
             ShowResetConfirm();
+        }
+
+        static PopupView PopupOf(GameObject go) =>
+            go != null ? go.GetComponent<PopupView>() : null;
+
+        void HidePopupNow(GameObject go)
+        {
+            var p = PopupOf(go);
+            if (p != null) p.HideImmediate();
+            else if (go != null) go.SetActive(false);
         }
 
         void RefreshSettingsLabels()
         {
-            var lab = SettingsSoundBtn != null ? LabelOf(SettingsSoundBtn) : null;
-            if (lab != null) lab.text = SaveStore.SoundOn ? "Sound: on" : "Sound: off";
-            var motion = SettingsMotionBtn != null ? LabelOf(SettingsMotionBtn) : null;
-            if (motion != null) motion.text = SaveStore.ReduceMotion ? "Reduce motion: on" : "Reduce motion: off";
+            if (MusicSlider != null) MusicSlider.SetValueWithoutNotify(SaveStore.MusicVolume);
+            if (SfxSlider != null) SfxSlider.SetValueWithoutNotify(SaveStore.SfxVolume);
+            if (ReduceMotionToggle != null)
+                ReduceMotionToggle.SetIsOnWithoutNotify(SaveStore.ReduceMotion);
+            SetKnob(SaveStore.ReduceMotion, true);
+            AudioService.SetMusicPreview(SaveStore.MusicVolume);
+            AudioService.SetSfxPreview(SaveStore.SfxVolume);
+            StyleSettings();
         }
 
-        void ToggleReduceMotion()
+        void OnReduceMotionChanged(bool on)
         {
-            SaveStore.SetReduceMotion(!SaveStore.ReduceMotion);
-            RefreshSettingsLabels();
-            if (SaveStore.ReduceMotion && _introCo != null)
+            SaveStore.SetReduceMotion(on);
+            SetKnob(on, false);
+            if (on && _introCo != null)
             {
                 StopCoroutine(_introCo);
                 _introCo = null;
                 SetIntroFinal();
             }
+            StyleSettings();
             AudioService.Play("tap");
         }
 
-        /// <summary>Tombol Pengaturan memakai resep sekunder; Reset Progres tetap
-        /// Aksen (tindakan destruktif) dengan label auto-kontras.</summary>
+        void SetKnob(bool on, bool instant)
+        {
+            if (ReduceMotionKnob == null) return;
+            float target = on ? 30f : -30f;   // track 136, kenop 60, margin 8
+            if (_knobCo != null) { StopCoroutine(_knobCo); _knobCo = null; }
+            if (instant)
+            {
+                var p = ReduceMotionKnob.anchoredPosition;
+                p.x = target;
+                ReduceMotionKnob.anchoredPosition = p;
+                return;
+            }
+            _knobCo = StartCoroutine(KnobCo(target));
+        }
+
+        Coroutine _knobCo;
+
+        IEnumerator KnobCo(float target)
+        {
+            float from = ReduceMotionKnob.anchoredPosition.x;
+            const float dur = 0.15f;
+            for (float t = 0f; t < dur;)
+            {
+                t += Time.unscaledDeltaTime;
+                float k = Mathf.Clamp01(t / dur);
+                var p = ReduceMotionKnob.anchoredPosition;
+                p.x = Mathf.Lerp(from, target, k * k * (3f - 2f * k));
+                ReduceMotionKnob.anchoredPosition = p;
+                yield return null;
+            }
+            var q = ReduceMotionKnob.anchoredPosition;
+            q.x = target;
+            ReduceMotionKnob.anchoredPosition = q;
+            _knobCo = null;
+        }
+
+        static void AddSliderCommit(Slider s, System.Action<float> commit)
+        {
+            var c = s.GetComponent<SliderCommit>();
+            if (c == null) c = s.gameObject.AddComponent<SliderCommit>();
+            c.Slider = s;
+            c.Commit = commit;
+        }
+
+        /// <summary>Slider/toggle + tombol bawah mengikuti peran warna tema.</summary>
         void StyleSettings()
         {
-            UiFactory.FrameTint(SettingsSoundBtn, false);
-            UiFactory.FrameTint(SettingsMotionBtn, false);
-            UiFactory.FrameTint(SettingsCloseBtn, false);
+            var edge = ThemeApplier.ColorOf(ThemeApplier.Role.GridLine);
+            var surface = ThemeApplier.ColorOf(ThemeApplier.Role.CellEmpty);
+            var primary = ThemeApplier.ColorOf(ThemeApplier.Role.Primary);
+            var shadowPrimary = ThemeApplier.ColorOf(ThemeApplier.Role.ShadowPrimary);
+            var locked = ThemeApplier.ColorOf(ThemeApplier.Role.Lock);
 
-            if (SettingsResetBtn == null) return;
+            StyleSlider(MusicSlider, edge, primary, surface, shadowPrimary);
+            StyleSlider(SfxSlider, edge, primary, surface, shadowPrimary);
+
+            if (ReduceMotionTrack != null)
+                ReduceMotionTrack.color = SaveStore.ReduceMotion ? primary : edge;
+            if (ReduceMotionKnob != null)
+            {
+                var img = ReduceMotionKnob.GetComponent<Image>();
+                if (img != null) img.color = surface;
+                var sh = ReduceMotionKnob.GetComponent<Shadow>();
+                if (sh != null)
+                {
+                    sh.effectColor = locked;
+                    sh.effectDistance = new Vector2(0f, -4f);
+                }
+            }
+
+            UiFactory.FrameTint(ReplayTutorialBtn, false);
+            UiFactory.FrameTint(SettingsResetBtn, true);   // ikon sampah ikut warna Teks
+            if (SettingsResetBtn != null)
+            {
+                var trash = SettingsResetBtn.transform.Find("Icon");
+                if (trash != null)
+                    foreach (var im in trash.GetComponentsInChildren<Image>(true))
+                        im.color = ThemeApplier.ColorOf(ThemeApplier.Role.Text);
+            }
+        }
+
+        static void StyleSlider(Slider s, Color edge, Color primary, Color surface, Color shadowPrimary)
+        {
+            if (s == null) return;
+            var track = s.transform.Find("Track");
+            var trackImg = track != null ? track.GetComponent<Image>() : null;
+            if (trackImg != null) trackImg.color = edge;
+            if (s.fillRect != null)
+            {
+                var fill = s.fillRect.GetComponent<Image>();
+                if (fill != null) fill.color = primary;
+            }
+            if (s.handleRect != null)
+            {
+                var handle = s.handleRect.GetComponent<Image>();
+                if (handle != null) handle.color = shadowPrimary;
+                var inner = s.handleRect.Find("Fill");
+                var innerImg = inner != null ? inner.GetComponent<Image>() : null;
+                if (innerImg != null) innerImg.color = surface;
+            }
+        }
+
+        /// <summary>Konfirmasi: ikon peringatan Aksen; Reset = Aksen (label auto-kontras),
+        /// Cancel = sekunder. Label dialog diatur di sini (bukan _textTint).</summary>
+        void StyleConfirm()
+        {
             var accent = ThemeApplier.ColorOf(ThemeApplier.Role.Accent);
-            var img = SettingsResetBtn.GetComponent<Image>();
-            if (img != null) img.color = accent;
-            UiFactory.ApplyShadow(SettingsResetBtn, new Vector2(0f, -12f),
-                ThemeApplier.ColorOf(ThemeApplier.Role.ShadowAccent));
-            var fill = SettingsResetBtn.transform.Find("Fill");
-            if (fill != null) fill.gameObject.SetActive(false);
-            var lab = LabelOf(SettingsResetBtn);
-            if (lab != null) lab.color = ThemeApplier.ContrastTextOn(accent);
+            var contrast = ThemeApplier.ContrastTextOn(accent);
+            if (ConfirmWarning != null)
+            {
+                ConfirmWarning.color = accent;
+                UiFactory.ApplyShadow(ConfirmWarning, new Vector2(0f, -12f),
+                    ThemeApplier.ColorOf(ThemeApplier.Role.ShadowAccent));
+            }
+            if (ConfirmMarkBar != null) ConfirmMarkBar.color = contrast;
+            if (ConfirmMarkDot != null) ConfirmMarkDot.color = contrast;
+
+            if (ConfirmYes != null)
+            {
+                var img = ConfirmYes.GetComponent<Image>();
+                if (img != null) img.color = accent;
+                UiFactory.ApplyShadow(ConfirmYes, new Vector2(0f, -16f),
+                    ThemeApplier.ColorOf(ThemeApplier.Role.ShadowAccent));
+                var fill = ConfirmYes.transform.Find("Fill");
+                if (fill != null) fill.gameObject.SetActive(false);
+                var lab = LabelOf(ConfirmYes);
+                if (lab != null) lab.color = contrast;
+            }
+            if (ConfirmNo != null)
+            {
+                UiFactory.FrameTint(ConfirmNo, false);
+                var fill = ConfirmNo.transform.Find("Fill");
+                if (fill != null) fill.gameObject.SetActive(true);
+                var lab = LabelOf(ConfirmNo);
+                if (lab != null) lab.color = ThemeApplier.ColorOf(ThemeApplier.Role.Text);
+            }
         }
 
         // ------------------------ intro menu (spec bagian 8) ------------------------
@@ -478,44 +743,133 @@ namespace GridCut.Game
 
         public void OpenLevelSelect() => AppRoot.Instance.OpenLevelSelect();
 
-        public void ShowResetConfirm() => ConfirmDialog.SetActive(true);
-        public void HideResetConfirm() => ConfirmDialog.SetActive(false);
+        public void ShowResetConfirm()
+        {
+            var p = PopupOf(ConfirmDialog);
+            if (p == null) return;
+            if (ConfirmYes != null) ConfirmYes.interactable = true;
+            if (ConfirmNo != null) ConfirmNo.interactable = true;
+            p.Show();
+            StartCoroutine(SelectCancelNextFrame());
+        }
+
+        IEnumerator SelectCancelNextFrame()
+        {
+            yield return null;
+            if (ConfirmNo != null && UnityEngine.EventSystems.EventSystem.current != null)
+                UnityEngine.EventSystems.EventSystem.current.SetSelectedGameObject(ConfirmNo.gameObject);
+        }
+
+        public void HideResetConfirm()
+        {
+            PopupOf(ConfirmDialog)?.Hide();
+            ClearConfirmSelection();
+        }
+
+        void ClearConfirmSelection()
+        {
+            var es = UnityEngine.EventSystems.EventSystem.current;
+            if (es == null) return;
+            var sel = es.currentSelectedGameObject;
+            if (sel != null && ConfirmDialog != null && sel.transform.IsChildOf(ConfirmDialog.transform))
+                es.SetSelectedGameObject(null);
+        }
 
         public void ConfirmReset()
         {
-            SaveStore.ResetProgress();
-            // a theme that is now locked falls back to the default Paper theme
-            // (strict: tema terbuka hanya bila level N sudah SELESAI → UnlockedLevel > N)
-            if (SaveStore.ThemeIndex > 0 && SaveStore.UnlockedLevel <= ThemeLibrary.All[SaveStore.ThemeIndex].UnlockLevel)
-                ThemeApplier.Apply(0);
-            HideResetConfirm();
-            RefreshLabels();
+            // cegah tekan ganda seketika
+            if (ConfirmYes != null) ConfirmYes.interactable = false;
+            if (ConfirmNo != null) ConfirmNo.interactable = false;
+
+            SaveStore.ResetProgress();   // level, bintang, state main, tema terbuka, tanda tutorial
+            if (SaveStore.ThemeIndex != 0)
+            {
+                ThemeApplier.Apply(0);   // kembali ke Paper; audio/motion tidak disentuh
+                _themeRepaintPending = true;
+            }
+
+            HidePopupNow(ConfirmDialog);
+            HidePopupNow(SettingsPopup);   // kedua popup tertutup
+
+            RefreshLabels();               // tombol utama kembali "Play"
             RefreshThemeTint();
+            RefreshThemeDot();
+            RefreshSettingsLabels();
+
+            if (ConfirmYes != null) ConfirmYes.interactable = true;
+            if (ConfirmNo != null) ConfirmNo.interactable = true;
+            ClearConfirmSelection();
+            ShowResetToast();
             AudioService.Play("tap");
+        }
+
+        void ShowResetToast()
+        {
+            if (_toastCo != null) StopCoroutine(_toastCo);
+            _toastCo = StartCoroutine(ResetToastCo());
+        }
+
+        IEnumerator ResetToastCo()
+        {
+            if (ResetToast == null) { _toastCo = null; yield break; }
+            ResetToast.SetActive(true);
+            var cg = ResetToast.GetComponent<CanvasGroup>();
+            if (cg != null) cg.alpha = 1f;
+            yield return new WaitForSecondsRealtime(1.5f);
+            ResetToast.SetActive(false);
+            _toastCo = null;
         }
 
         public void SelectTheme(int index)
         {
+            if (_lockedHint != null) { StopCoroutine(_lockedHint); _lockedHint = null; }
             var th = ThemeLibrary.All[index];
             bool unlocked = SaveStore.UnlockedLevel > th.UnlockLevel || th.UnlockLevel <= 1;
             var btn = index < ThemeSwatches.Length ? ThemeSwatches[index] : null;
             if (!unlocked)
             {
-                // spec: tema terkunci tidak bisa dipilih — tap hanya menggetarkan kartu
                 AudioService.Play("invalid");
-                if (btn != null) StartCoroutine(ShakeCard(btn.GetComponent<RectTransform>()));
+                if (btn != null)
+                {
+                    if (!SaveStore.ReduceMotion)
+                        StartCoroutine(ShakeCard(btn.GetComponent<RectTransform>()));
+                    int more = Mathf.Max(1, th.UnlockLevel - SaveStore.UnlockedLevel + 1);
+                    _lockedHint = StartCoroutine(LockedPillHint(index, more));
+                }
                 return;
             }
+            // spec bagian 10: tema langsung diterapkan, popup tetap terbuka
             ThemeApplier.Apply(index);
             RefreshThemeTint();
-            AudioService.Play("unlock");
-            if (ThemePopup != null && ThemePopup.activeSelf) ThemePopup.SetActive(false);
+            _themeRepaintPending = true;
+            AudioService.Play("tap");
         }
 
-        // pola getar level select: ±7 px, 6 langkah, 35 ms
+        /// <summary>Opsional spek: pill terkunci sesaat menampilkan sisa level.</summary>
+        IEnumerator LockedPillHint(int index, int more)
+        {
+            var card = index < ThemeSwatches.Length ? ThemeSwatches[index] : null;
+            var pillT = card != null ? card.transform.Find("StatusPill") : null;
+            var labT = pillT != null ? pillT.Find("Label") : null;
+            var lab = labT != null ? labT.GetComponent<TMP_Text>() : null;
+            if (lab != null)
+            {
+                lab.text = $"{more} more levels";
+                var prt = pillT as RectTransform;
+                if (prt != null)
+                    prt.sizeDelta = new Vector2(
+                        Mathf.Max(120f, lab.GetPreferredValues(lab.text, 0f, 0f).x + 56f), 68f);
+            }
+            yield return new WaitForSecondsRealtime(1.5f);
+            _lockedHint = null;
+            RefreshThemeTint();
+        }
+
+        // getar kartu terkunci: ±8 px, tiga ayunan dalam 200 ms (spec bagian 8/10)
         IEnumerator ShakeCard(RectTransform rt)
         {
-            const float amp = 7f, step = 0.035f;
+            const float amp = 8f;
+            const float step = 0.2f / 6f;
             var basePos = rt != null ? rt.anchoredPosition : Vector2.zero;
             for (int k = 0; k < 6; k++)
             {
@@ -571,11 +925,25 @@ namespace GridCut.Game
             RefreshLabels();
             RefreshMuteIcon();      // sound may have been toggled on another screen
             RefreshThemeTint();
+            RefreshThemeDot();
             PlayIntro();            // spec bagian 8: hanya pembukaan pertama per sesi
+        }
+
+        void RefreshThemeDot()
+        {
+            if (ThemeNewDot != null) ThemeNewDot.gameObject.SetActive(SaveStore.HasUnseenTheme());
         }
 
         void RefreshThemeTint()
         {
+            var edge = ThemeApplier.ColorOf(ThemeApplier.Role.GridLine);
+            var surface = ThemeApplier.ColorOf(ThemeApplier.Role.CellEmpty);
+            var accent = ThemeApplier.ColorOf(ThemeApplier.Role.Accent);
+            var primary = ThemeApplier.ColorOf(ThemeApplier.Role.Primary);
+            var text = ThemeApplier.ColorOf(ThemeApplier.Role.Text);
+            var muted = ThemeApplier.ColorOf(ThemeApplier.Role.TextMuted);
+            var lockedFill = ThemeApplier.ColorOf(ThemeApplier.Role.Locked);
+
             for (int i = 0; i < ThemeSwatches.Length && i < ThemeLibrary.All.Length; i++)
             {
                 var card = ThemeSwatches[i];
@@ -585,39 +953,93 @@ namespace GridCut.Game
                     continue;
                 }
                 var th = ThemeLibrary.All[i];
+                bool inUse = SaveStore.ThemeIndex == i;
                 bool unlocked = SaveStore.UnlockedLevel > th.UnlockLevel || th.UnlockLevel <= 1;
-                // 5 kotak warna pratinjau per kartu
-                for (int s = 0; s < 5; s++)
+                bool locked = !unlocked;
+
+                var rootImg = card.GetComponent<Image>();
+                var shadow = card.GetComponent<Shadow>();
+                var group = card.GetComponent<CanvasGroup>();
+                if (rootImg != null) rootImg.color = inUse ? accent : edge;
+                if (shadow != null)
                 {
-                    var swT = card.transform.Find("Swatch" + s);
-                    var img = swT != null ? swT.GetComponent<Image>() : null;
-                    if (img != null)
+                    shadow.effectColor = inUse
+                        ? ThemeApplier.ColorOf(ThemeApplier.Role.ShadowAccent) : edge;
+                    shadow.effectDistance = new Vector2(0f, -10f);
+                }
+                if (group != null) group.alpha = locked ? 0.75f : 1f;
+
+                var fillT = card.transform.Find("Fill");
+                var fillImg = fillT != null ? fillT.GetComponent<Image>() : null;
+                if (fillImg != null) fillImg.color = surface;
+
+                var previewT = card.transform.Find("Fill/Content/Preview");
+                var preview = previewT != null ? previewT.GetComponent<Image>() : null;
+                if (preview != null) preview.color = ThemeApplier.Parse(th.Background);
+
+                for (int p = 0; p < 6; p++)
+                {
+                    var cellT = previewT != null ? previewT.Find("Piece" + p) : null;
+                    var cell = cellT != null ? cellT.GetComponent<Image>() : null;
+                    if (cell == null) continue;
+                    var c = ThemeApplier.Parse(th.Rects[Mathf.Min(p, th.Rects.Length - 1)]);
+                    c.a = locked ? 0.45f : 1f;
+                    cell.color = c;
+                }
+
+                var lockT = previewT != null ? previewT.Find("Lock") : null;
+                if (lockT != null)
+                {
+                    lockT.gameObject.SetActive(locked);
+                    var lockImg = lockT.GetComponent<Image>();
+                    if (lockImg != null)
                     {
-                        var c = ThemeApplier.Parse(th.Rects[Mathf.Min(s, th.Rects.Length - 1)]);
-                        c.a = unlocked ? 1f : 0.35f;
-                        img.color = c;
+                        // kontras terhadap latar pratinjau tema itu sendiri
+                        lockImg.color = ThemeApplier.ContrastTextOn(
+                            ThemeApplier.Parse(th.Background));
                     }
                 }
-                var nameT = card.transform.Find("Name");
-                var lab = nameT != null ? nameT.GetComponent<TMP_Text>() : null;
-                if (lab != null)
+
+                var nameT = card.transform.Find("Fill/Content/Name");
+                var nameLab = nameT != null ? nameT.GetComponent<TMP_Text>() : null;
+                if (nameLab != null)
                 {
-                    lab.text = th.Name;
-                    var c = ThemeApplier.ColorOf(ThemeApplier.Role.Text);
-                    c.a = unlocked ? 1f : 0.4f;
-                    lab.color = c;
+                    nameLab.text = th.Name;
+                    nameLab.color = text;
                 }
-                // status: Dipakai / Pilih / Buka di level N
-                var stT = card.transform.Find("Status");
-                var st = stT != null ? stT.GetComponent<TMP_Text>() : null;
-                if (st != null)
+
+                var pillT = card.transform.Find("StatusPill");
+                var pillImg = pillT != null ? pillT.GetComponent<Image>() : null;
+                var pillLabT = pillT != null ? pillT.Find("Label") : null;
+                var pillLab = pillLabT != null ? pillLabT.GetComponent<TMP_Text>() : null;
+                string status;
+                Color pillColor, labelColor;
+                if (inUse)
                 {
-                    st.text = SaveStore.ThemeIndex == i ? "In use"
-                        : unlocked ? "Select" : $"Finish level {th.UnlockLevel}";
-                    var c = ThemeApplier.ColorOf(SaveStore.ThemeIndex == i || unlocked
-                        ? ThemeApplier.Role.Accent : ThemeApplier.Role.Text);
-                    c.a = unlocked || SaveStore.ThemeIndex == i ? 1f : 0.5f;
-                    st.color = c;
+                    status = "In use";
+                    pillColor = accent;
+                    labelColor = ThemeApplier.ContrastTextOn(accent);
+                }
+                else if (unlocked)
+                {
+                    status = "Select";
+                    pillColor = primary;
+                    labelColor = ThemeApplier.ContrastTextOn(primary);
+                }
+                else
+                {
+                    status = $"Level {th.UnlockLevel}";
+                    pillColor = lockedFill;
+                    labelColor = muted;
+                }
+                if (pillImg != null) pillImg.color = pillColor;
+                if (pillLab != null)
+                {
+                    pillLab.text = status;
+                    pillLab.color = labelColor;
+                    float w = Mathf.Max(120f, pillLab.GetPreferredValues(status, 0f, 0f).x + 56f);
+                    var prt = pillT as RectTransform;
+                    if (prt != null) prt.sizeDelta = new Vector2(w, 68f);
                 }
                 // kartu tetap interaktif agar tap kartu terkunci memicu getar (spec)
             }

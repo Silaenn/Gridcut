@@ -43,6 +43,7 @@ namespace GridCut.Game
         IAdService _ads;
         Action<Color> _bgTint;
         BgDecor _decor;
+        int _popupCount;
 
         void Awake() => Instance = this;
 
@@ -118,7 +119,10 @@ namespace GridCut.Game
         {
             var kb = Keyboard.current;
             if (kb != null && kb.escapeKey.wasPressedThisFrame)
+            {
+                if (PopupView.CloseTop()) return;   // Back/Escape menutup popup teratas
                 NavBack();
+            }
         }
 
         static IAdService ResolveAds()
@@ -162,6 +166,42 @@ namespace GridCut.Game
         {
             Switch(ScreenId.Gameplay, push: true);
             Gameplay.Show(levelId);
+        }
+
+        // ------------------------------ popup blocking ------------------------------
+
+        /// <summary>Spec bagian 9: selama popup terbuka, tombol layar di bawahnya
+        /// tidak bisa dipakai dan drag yang berjalan dibatalkan. Backdrop juga
+        /// memblokir raycast; ini lapisan kedua untuk tombol/keys.</summary>
+        public void PopupOpened()
+        {
+            _popupCount++;
+            ApplyPopupBlocking();
+        }
+
+        public void PopupClosed()
+        {
+            _popupCount = Mathf.Max(0, _popupCount - 1);
+            ApplyPopupBlocking();
+        }
+
+        void ApplyPopupBlocking()
+        {
+            bool block = _popupCount > 0;
+            SetScreenInteractive(Home, !block);
+            SetScreenInteractive(LevelSelect, !block);
+            SetScreenInteractive(Gameplay, !block);
+            if (block && Gameplay != null && Gameplay.Board != null)
+                Gameplay.Board.ClearPreview();   // drag di layar bawah dibatalkan
+        }
+
+        static void SetScreenInteractive(MonoBehaviour screen, bool on)
+        {
+            if (screen == null) return;
+            var cg = screen.GetComponent<CanvasGroup>();
+            if (cg == null) return;
+            cg.interactable = on;
+            cg.blocksRaycasts = on;
         }
 
         /// <summary>Continue button: jumps to the highest unlocked level.</summary>

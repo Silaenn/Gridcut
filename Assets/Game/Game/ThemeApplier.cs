@@ -23,6 +23,9 @@ namespace GridCut.Game
 
         public static ThemeLibrary.Theme Current { get; private set; } = ThemeLibrary.Paper;
 
+        /// <summary>True selama interpolasi 300 ms antar tema.</summary>
+        public static bool IsTransitioning => _t < 1f;
+
         static readonly List<(Role role, int rectIndex, Action<Color> cb)> _subscribers =
             new List<(Role, int, Action<Color>)>();
 

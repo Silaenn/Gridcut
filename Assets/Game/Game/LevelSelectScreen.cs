@@ -244,7 +244,7 @@ namespace GridCut.Game
             if (id > SaveStore.UnlockedLevel)
             {
                 AudioService.Play("invalid");
-                StartCoroutine(Shake(seat));
+                if (!SaveStore.ReduceMotion) StartCoroutine(Shake(seat));
                 return;
             }
             AudioService.Play("tap");

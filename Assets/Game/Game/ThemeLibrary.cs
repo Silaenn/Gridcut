@@ -65,7 +65,7 @@ namespace GridCut.Game
 
         public static readonly Theme Sea = new Theme
         {
-            Name = "Sea", UnlockLevel = 30, UnlockLevelHint = "level 30",
+            Name = "Ocean", UnlockLevel = 30, UnlockLevelHint = "level 30",
             Background = "#E6F4F5", Dot = "#D2E9EB", CellEmpty = "#F4FBFB",
             GridLine = "#BFE0E3", Board = "#B8DCE0", Primary = "#F9C74F",
             Accent = "#0E7C86", Text = "#12394A", TextMuted = "#4B6F7C",

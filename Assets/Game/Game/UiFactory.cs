@@ -163,13 +163,13 @@ namespace GridCut.Game
 
         /// <summary>Kartu: akar warna Tepi (GridLine) + bayangan (0,-12); anak "Fill"
         /// warna Permukaan (CellEmpty).</summary>
-        public static void CardTint(Component card)
+        public static void CardTint(Component card, float shadowDy = -12f)
         {
             if (card == null) return;
             var edge = ThemeApplier.ColorOf(ThemeApplier.Role.GridLine);
             var img = card.GetComponent<Image>();
             if (img != null) img.color = edge;
-            ApplyShadow(card.transform, new Vector2(0f, -12f), edge);
+            ApplyShadow(card.transform, new Vector2(0f, shadowDy), edge);
             var fill = card.transform.Find("Fill");
             if (fill != null)
             {

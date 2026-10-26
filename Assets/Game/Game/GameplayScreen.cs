@@ -436,7 +436,8 @@ namespace GridCut.Game
         void OpenWinOverlay()
         {
             Board.ClearPreview();
-            int stars = _session.HintCount == 0 ? 3 : _session.HintCount <= 1 ? 2 : 1;
+            int stars = _session.Level.IsTutorial ? 3
+                : _session.HintCount == 0 ? 3 : _session.HintCount <= 1 ? 2 : 1;
             bool unlocking = _levelId >= SaveStore.UnlockedLevel && _levelId < SaveStore.LevelCount;
             SaveStore.RecordWin(_levelId, stars);
             SaveStore.ClearPlayState();
