@@ -36,12 +36,12 @@ namespace GridCut.Game
             public string ShadowBoard;     // bayangan Papan
             public string[] PieceEdges;    // Tepi keping 1..6 (bayangan Tepi = Tepi persis)
 
-            public string Desc => $"{Name} (setelah level {UnlockLevel} selesai)";
+            public string Desc => $"{Name} (unlocked after level {UnlockLevel})";
         }
 
         public static readonly Theme Paper = new Theme
         {
-            Name = "Kertas", UnlockLevel = 1, UnlockLevelHint = "bawaan",
+            Name = "Paper", UnlockLevel = 1, UnlockLevelHint = "default",
             Background = "#FFF1D6", Dot = "#F5DFB0", CellEmpty = "#FFFAEF",
             GridLine = "#EAD9B5", Board = "#E9D3A8", Primary = "#FFC857",
             Accent = "#FF5D73", Text = "#3B2F2F", TextMuted = "#6B5A45",
@@ -53,7 +53,7 @@ namespace GridCut.Game
 
         public static readonly Theme Night = new Theme
         {
-            Name = "Malam", UnlockLevel = 10, UnlockLevelHint = "level 10",
+            Name = "Night", UnlockLevel = 10, UnlockLevelHint = "level 10",
             Background = "#1E1F2B", Dot = "#272A3B", CellEmpty = "#2C2F45",
             GridLine = "#3F4363", Board = "#3A3E5C", Primary = "#FFB454",
             Accent = "#FF7A90", Text = "#ECEFF4", TextMuted = "#A9B0C6",
@@ -65,7 +65,7 @@ namespace GridCut.Game
 
         public static readonly Theme Sea = new Theme
         {
-            Name = "Laut", UnlockLevel = 30, UnlockLevelHint = "level 30",
+            Name = "Sea", UnlockLevel = 30, UnlockLevelHint = "level 30",
             Background = "#E6F4F5", Dot = "#D2E9EB", CellEmpty = "#F4FBFB",
             GridLine = "#BFE0E3", Board = "#B8DCE0", Primary = "#F9C74F",
             Accent = "#0E7C86", Text = "#12394A", TextMuted = "#4B6F7C",
@@ -77,7 +77,7 @@ namespace GridCut.Game
 
         public static readonly Theme Forest = new Theme
         {
-            Name = "Hutan", UnlockLevel = 60, UnlockLevelHint = "level 60",
+            Name = "Forest", UnlockLevel = 60, UnlockLevelHint = "level 60",
             Background = "#EAF0E4", Dot = "#DCE6D2", CellEmpty = "#F5F8F1",
             GridLine = "#CBD9BE", Board = "#C5D6B6", Primary = "#F2B84B",
             Accent = "#D9622B", Text = "#23361F", TextMuted = "#55694F",

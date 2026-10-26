@@ -108,6 +108,7 @@ namespace GridCut.Game
                 UiFactory.FrameTint(ThemeBtn, false);    // sekunder (Tema)
                 UiFactory.FrameTint(SoundBtn, true);     // ikon bulat
                 UiFactory.FrameTint(ResetBtn, true);     // gear = pengaturan
+                UiFactory.FrameTint(ThemeCloseBtn, false);
                 StyleSettings();
             };
             _accentTint = _ => StyleSettings();
@@ -219,7 +220,7 @@ namespace GridCut.Game
             {
                 int level = SaveStore.UnlockedLevel;
                 if (level <= 1) cont.text = "Play";
-                else cont.text = $"Lanjutkan \u00b7 Level {level}";
+                else cont.text = $"Continue \u00b7 Level {level}";
             }
         }
 
@@ -281,9 +282,9 @@ namespace GridCut.Game
         void RefreshSettingsLabels()
         {
             var lab = SettingsSoundBtn != null ? LabelOf(SettingsSoundBtn) : null;
-            if (lab != null) lab.text = SaveStore.SoundOn ? "Suara: nyala" : "Suara: mati";
+            if (lab != null) lab.text = SaveStore.SoundOn ? "Sound: on" : "Sound: off";
             var motion = SettingsMotionBtn != null ? LabelOf(SettingsMotionBtn) : null;
-            if (motion != null) motion.text = SaveStore.ReduceMotion ? "Kurangi gerakan: nyala" : "Kurangi gerakan: mati";
+            if (motion != null) motion.text = SaveStore.ReduceMotion ? "Reduce motion: on" : "Reduce motion: off";
         }
 
         void ToggleReduceMotion()
@@ -611,8 +612,8 @@ namespace GridCut.Game
                 var st = stT != null ? stT.GetComponent<TMP_Text>() : null;
                 if (st != null)
                 {
-                    st.text = SaveStore.ThemeIndex == i ? "Dipakai"
-                        : unlocked ? "Pilih" : $"Selesaikan level {th.UnlockLevel}";
+                    st.text = SaveStore.ThemeIndex == i ? "In use"
+                        : unlocked ? "Select" : $"Finish level {th.UnlockLevel}";
                     var c = ThemeApplier.ColorOf(SaveStore.ThemeIndex == i || unlocked
                         ? ThemeApplier.Role.Accent : ThemeApplier.Role.Text);
                     c.a = unlocked || SaveStore.ThemeIndex == i ? 1f : 0.5f;

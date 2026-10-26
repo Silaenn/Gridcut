@@ -352,9 +352,9 @@ namespace GridCut.Game
 
         static string TutorialCopy(int id) => id switch
         {
-            1 => "Tarik di kisi untuk menutup angka",
-            2 => "Persegi baru menimpa persegi lama",
-            _ => "Tap persegi untuk menghapusnya",
+            1 => "Drag on the grid to cover the numbers",
+            2 => "A new rectangle replaces the old one",
+            _ => "Tap a rectangle to remove it",
         };
 
         public void ToggleMute()
@@ -442,9 +442,9 @@ namespace GridCut.Game
             SaveStore.ClearPlayState();
             int best = SaveStore.BestStars(_levelId);
 
-            WinTitle.text = "Selesai!";
-            WinDetail.text = $"Waktu {TimeSpan.FromSeconds(_elapsed):mm\\:ss}"
-                + (unlocking ? "\nLevel baru terbuka!" : "");
+            WinTitle.text = "Complete!";
+            WinDetail.text = $"Time {TimeSpan.FromSeconds(_elapsed):mm\\:ss}"
+                + (unlocking ? "\nNew level unlocked!" : "");
             UiFactory.SetStars(WinStarsRow, best,
                 ThemeApplier.ColorOf(ThemeApplier.Role.Primary),
                 ThemeApplier.ColorOf(ThemeApplier.Role.GridLine));
@@ -480,7 +480,7 @@ namespace GridCut.Game
             var rt = (RectTransform)WinBanner.transform;
             var rest = new Vector2(0f, -12f);
             var above = new Vector2(0f, rest.y + rt.rect.height + 16f);
-            if (WinBannerLabel != null) WinBannerLabel.text = $"{th.Name} terbuka!";
+            if (WinBannerLabel != null) WinBannerLabel.text = $"{th.Name} unlocked!";
             if (BannerSwatches != null)
                 for (int i = 0; i < BannerSwatches.Length; i++)
                     if (i < th.Rects.Length && BannerSwatches[i] != null

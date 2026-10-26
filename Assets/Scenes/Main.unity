@@ -309,7 +309,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: Tema
+  m_text: Themes
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 95ae9ca465bc7869f95d6a9fc86bb26d, type: 2}
   m_sharedMaterial: {fileID: -8177499383913705676, guid: 95ae9ca465bc7869f95d6a9fc86bb26d, type: 2}
@@ -381,6 +381,21 @@ MonoBehaviour:
   m_hasFontAssetChanged: 0
   m_baseMaterial: {fileID: 0}
   m_maskOffset: {x: 0, y: 0, z: 0, w: 0}
+--- !u!114 &5899191
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 21000015}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: cfabb0440166ab443bba8876756fdfa9, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.Shadow
+  m_EffectColor: {r: 0.91764706, g: 0.8509804, b: 0.70980394, a: 1}
+  m_EffectDistance: {x: 0, y: -12}
+  m_UseGraphicAlpha: 0
 --- !u!1 &21000001
 GameObject:
   m_ObjectHideFlags: 0
@@ -640,7 +655,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: Pilih Tema
+  m_text: Select Theme
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 95ae9ca465bc7869f95d6a9fc86bb26d, type: 2}
   m_sharedMaterial: {fileID: -8177499383913705676, guid: 95ae9ca465bc7869f95d6a9fc86bb26d, type: 2}
@@ -726,6 +741,7 @@ GameObject:
   - component: {fileID: 21000019}
   - component: {fileID: 7777002231810002}
   - component: {fileID: 7777002231820002}
+  - component: {fileID: 5899191}
   m_Layer: 0
   m_Name: CloseBtn
   m_TagString: Untagged
@@ -745,6 +761,7 @@ RectTransform:
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
+  - {fileID: 560323434}
   - {fileID: 21000021}
   m_Father: {fileID: 21000008}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
@@ -774,7 +791,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.Image
   m_Material: {fileID: 0}
-  m_Color: {r: 0.17, g: 0.17, b: 0.17, a: 1}
+  m_Color: {r: 0.91764706, g: 0.8509804, b: 0.70980394, a: 1}
   m_RaycastTarget: 1
   m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
   m_Maskable: 1
@@ -900,7 +917,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: Tutup
+  m_text: Close
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 95ae9ca465bc7869f95d6a9fc86bb26d, type: 2}
   m_sharedMaterial: {fileID: -8177499383913705676, guid: 95ae9ca465bc7869f95d6a9fc86bb26d, type: 2}
@@ -910,7 +927,7 @@ MonoBehaviour:
   m_fontColor32:
     serializedVersion: 2
     rgba: 4294967295
-  m_fontColor: {r: 0, g: 0, b: 0, a: 1}
+  m_fontColor: {r: 0.23137255, g: 0.18431373, b: 0.18431373, a: 1}
   m_enableVertexGradient: 0
   m_colorMode: 3
   m_fontColorGradient:
@@ -1229,7 +1246,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: Pengaturan
+  m_text: Settings
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 95ae9ca465bc7869f95d6a9fc86bb26d, type: 2}
   m_sharedMaterial: {fileID: -8177499383913705676, guid: 95ae9ca465bc7869f95d6a9fc86bb26d, type: 2}
@@ -1491,7 +1508,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: 'Suara: nyala'
+  m_text: 'Sound: on'
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 95ae9ca465bc7869f95d6a9fc86bb26d, type: 2}
   m_sharedMaterial: {fileID: -8177499383913705676, guid: 95ae9ca465bc7869f95d6a9fc86bb26d, type: 2}
@@ -1753,7 +1770,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: Reset Progres
+  m_text: Reset Progress
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 95ae9ca465bc7869f95d6a9fc86bb26d, type: 2}
   m_sharedMaterial: {fileID: -8177499383913705676, guid: 95ae9ca465bc7869f95d6a9fc86bb26d, type: 2}
@@ -2015,7 +2032,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: Tutup
+  m_text: Close
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 95ae9ca465bc7869f95d6a9fc86bb26d, type: 2}
   m_sharedMaterial: {fileID: -8177499383913705676, guid: 95ae9ca465bc7869f95d6a9fc86bb26d, type: 2}
@@ -2377,7 +2394,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: Pilih Level
+  m_text: Select Level
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 1fb9d5395866d75218f30d3da4f00e0b, type: 2}
   m_sharedMaterial: {fileID: -8177499383913705676, guid: 95ae9ca465bc7869f95d6a9fc86bb26d, type: 2}
@@ -3050,7 +3067,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: Semua level selesai!
+  m_text: All levels complete!
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 95ae9ca465bc7869f95d6a9fc86bb26d, type: 2}
   m_sharedMaterial: {fileID: -8177499383913705676, guid: 95ae9ca465bc7869f95d6a9fc86bb26d, type: 2}
@@ -3266,7 +3283,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: Malam terbuka!
+  m_text: Night unlocked!
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 95ae9ca465bc7869f95d6a9fc86bb26d, type: 2}
   m_sharedMaterial: {fileID: -8177499383913705676, guid: 95ae9ca465bc7869f95d6a9fc86bb26d, type: 2}
@@ -5580,7 +5597,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: Dipakai
+  m_text: In use
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: f93d5eec5cc9faff2802ad5fe6719029, type: 2}
   m_sharedMaterial: {fileID: -8177499383913705676, guid: 95ae9ca465bc7869f95d6a9fc86bb26d, type: 2}
@@ -5717,7 +5734,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: Pilih
+  m_text: Select
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: f93d5eec5cc9faff2802ad5fe6719029, type: 2}
   m_sharedMaterial: {fileID: -8177499383913705676, guid: 95ae9ca465bc7869f95d6a9fc86bb26d, type: 2}
@@ -5854,7 +5871,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: Pilih
+  m_text: Select
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: f93d5eec5cc9faff2802ad5fe6719029, type: 2}
   m_sharedMaterial: {fileID: -8177499383913705676, guid: 95ae9ca465bc7869f95d6a9fc86bb26d, type: 2}
@@ -5991,7 +6008,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: Pilih
+  m_text: Select
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: f93d5eec5cc9faff2802ad5fe6719029, type: 2}
   m_sharedMaterial: {fileID: -8177499383913705676, guid: 95ae9ca465bc7869f95d6a9fc86bb26d, type: 2}
@@ -6128,7 +6145,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: Pilih
+  m_text: Select
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: f93d5eec5cc9faff2802ad5fe6719029, type: 2}
   m_sharedMaterial: {fileID: -8177499383913705676, guid: 95ae9ca465bc7869f95d6a9fc86bb26d, type: 2}
@@ -7570,7 +7587,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: Malam
+  m_text: Night
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 95ae9ca465bc7869f95d6a9fc86bb26d, type: 2}
   m_sharedMaterial: {fileID: -8177499383913705676, guid: 95ae9ca465bc7869f95d6a9fc86bb26d, type: 2}
@@ -7782,7 +7799,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: Selesai!
+  m_text: Complete!
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 1fb9d5395866d75218f30d3da4f00e0b, type: 2}
   m_sharedMaterial: {fileID: -8177499383913705676, guid: 95ae9ca465bc7869f95d6a9fc86bb26d, type: 2}
@@ -9332,6 +9349,81 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 555641964}
   m_CullTransparentMesh: 1
+--- !u!1 &560323433
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 560323434}
+  - component: {fileID: 560323436}
+  - component: {fileID: 560323435}
+  m_Layer: 0
+  m_Name: Fill
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!224 &560323434
+RectTransform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 560323433}
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 21000016}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+  m_AnchorMin: {x: 0, y: 0}
+  m_AnchorMax: {x: 1, y: 1}
+  m_AnchoredPosition: {x: 0, y: 0}
+  m_SizeDelta: {x: -12, y: -12}
+  m_Pivot: {x: 0.5, y: 0.5}
+--- !u!114 &560323435
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 560323433}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fe87c0e1cc204ed48ad3b37840f39efc, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.Image
+  m_Material: {fileID: 0}
+  m_Color: {r: 1, g: 0.98039216, b: 0.9372549, a: 1}
+  m_RaycastTarget: 0
+  m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
+  m_Maskable: 1
+  m_OnCullStateChanged:
+    m_PersistentCalls:
+      m_Calls: []
+  m_Sprite: {fileID: 21300000, guid: e6167a5fcf6d46bb97fc58eab830bc0e, type: 3}
+  m_Type: 1
+  m_PreserveAspect: 0
+  m_FillCenter: 1
+  m_FillMethod: 4
+  m_FillAmount: 1
+  m_FillClockwise: 1
+  m_FillOrigin: 0
+  m_UseSpriteMesh: 0
+  m_PixelsPerUnitMultiplier: 1.4736842
+--- !u!222 &560323436
+CanvasRenderer:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 560323433}
+  m_CullTransparentMesh: 1
 --- !u!1 &575421478
 GameObject:
   m_ObjectHideFlags: 0
@@ -10415,7 +10507,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: Hapus semua progres?
+  m_text: Delete all progress?
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: f93d5eec5cc9faff2802ad5fe6719029, type: 2}
   m_sharedMaterial: {fileID: -8177499383913705676, guid: 95ae9ca465bc7869f95d6a9fc86bb26d, type: 2}
@@ -12455,7 +12547,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: Tarik di kisi untuk meletakkan persegi. Angka = luas persegi.
+  m_text: Drag on the grid to cover the numbers
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: f93d5eec5cc9faff2802ad5fe6719029, type: 2}
   m_sharedMaterial: {fileID: -7525479832480146416, guid: f93d5eec5cc9faff2802ad5fe6719029, type: 2}
@@ -13141,7 +13233,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: Level Berikutnya
+  m_text: Next Level
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 1fb9d5395866d75218f30d3da4f00e0b, type: 2}
   m_sharedMaterial: {fileID: -8177499383913705676, guid: 95ae9ca465bc7869f95d6a9fc86bb26d, type: 2}
@@ -13407,7 +13499,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: Batal
+  m_text: Cancel
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 95ae9ca465bc7869f95d6a9fc86bb26d, type: 2}
   m_sharedMaterial: {fileID: -8177499383913705676, guid: 95ae9ca465bc7869f95d6a9fc86bb26d, type: 2}
@@ -13895,7 +13987,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: 'Kurangi gerakan: mati'
+  m_text: 'Reduce motion: off'
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 95ae9ca465bc7869f95d6a9fc86bb26d, type: 2}
   m_sharedMaterial: {fileID: -8177499383913705676, guid: 95ae9ca465bc7869f95d6a9fc86bb26d, type: 2}
@@ -14199,7 +14291,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: Laut
+  m_text: Sea
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 95ae9ca465bc7869f95d6a9fc86bb26d, type: 2}
   m_sharedMaterial: {fileID: -8177499383913705676, guid: 95ae9ca465bc7869f95d6a9fc86bb26d, type: 2}
@@ -14926,7 +15018,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: Hutan
+  m_text: Forest
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 95ae9ca465bc7869f95d6a9fc86bb26d, type: 2}
   m_sharedMaterial: {fileID: -8177499383913705676, guid: 95ae9ca465bc7869f95d6a9fc86bb26d, type: 2}
@@ -15560,7 +15652,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: Pilih Level
+  m_text: Select Level
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 95ae9ca465bc7869f95d6a9fc86bb26d, type: 2}
   m_sharedMaterial: {fileID: -8177499383913705676, guid: 95ae9ca465bc7869f95d6a9fc86bb26d, type: 2}
@@ -15697,7 +15789,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: Kertas
+  m_text: Paper
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 95ae9ca465bc7869f95d6a9fc86bb26d, type: 2}
   m_sharedMaterial: {fileID: -8177499383913705676, guid: 95ae9ca465bc7869f95d6a9fc86bb26d, type: 2}
@@ -16352,7 +16444,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: Ya, hapus
+  m_text: Yes, delete
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 95ae9ca465bc7869f95d6a9fc86bb26d, type: 2}
   m_sharedMaterial: {fileID: -8177499383913705676, guid: 95ae9ca465bc7869f95d6a9fc86bb26d, type: 2}
