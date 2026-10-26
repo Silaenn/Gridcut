@@ -17,6 +17,7 @@ namespace GridCut.Game
         public static int UnlockedLevel { get; private set; } = 1;
         public static bool SoundOn { get; private set; } = true;
         public static int ThemeIndex { get; private set; } = 0;
+        public static bool ReduceMotion { get; private set; } = false;
 
         static readonly Dictionary<int, int> _bestStars = new Dictionary<int, int>();
 
@@ -25,6 +26,7 @@ namespace GridCut.Game
             UnlockedLevel = Mathf.Clamp(PlayerPrefs.GetInt("gc.unlocked", 1), 1, LevelCount);
             SoundOn = PlayerPrefs.GetInt("gc.sound", 1) == 1;
             ThemeIndex = Mathf.Clamp(PlayerPrefs.GetInt("gc.theme", 0), 0, ThemeLibrary.All.Length - 1);
+            ReduceMotion = PlayerPrefs.GetInt("gc.motion", 0) == 1;
             _bestStars.Clear();
             string packed = PlayerPrefs.GetString("gc.stars", "");
             if (packed.Length == 0) return;
@@ -124,6 +126,13 @@ namespace GridCut.Game
         {
             ThemeIndex = Mathf.Clamp(index, 0, ThemeLibrary.All.Length - 1);
             PlayerPrefs.SetInt("gc.theme", ThemeIndex);
+            PlayerPrefs.Save();
+        }
+
+        public static void SetReduceMotion(bool on)
+        {
+            ReduceMotion = on;
+            PlayerPrefs.SetInt("gc.motion", on ? 1 : 0);
             PlayerPrefs.Save();
         }
 

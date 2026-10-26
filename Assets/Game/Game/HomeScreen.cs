@@ -27,13 +27,26 @@ namespace GridCut.Game
         public GameObject ThemePopup;      // Dim + Card + 5 swatch + Tutup
         public GameObject SettingsPopup;   // Dim + Card + Suara / Reset Progres / Tutup
         public Button ThemeCloseBtn, SettingsSoundBtn, SettingsResetBtn, SettingsCloseBtn;
+        public Button SettingsMotionBtn;   // opsi Kurangi gerakan
         public Image MuteIcon, MuteIconOff, GearIcon, ThemeCard, SettingsCard;   // sprite ikon Kenney di Assets/Game/UI
         public TMP_Text ThemeTitle, SettingsTitle;
 
-        Action<Color> _textTint, _popupTint, _primaryTint, _frameTint;
+        Action<Color> _textTint, _popupTint, _primaryTint, _frameTint, _accentTint;
         RectTransform _logoRow;             // huruf logo GRIDCUT (dibake runtime)
         Image[] _logoTiles;                 // [i] = ubin huruf ke-i
         Action<Color>[] _logoTints;         // langganan warna keping per huruf (Rect i%6)
+
+        // spec bagian 8: intro logo + tombol hanya sekali per sesi
+        static bool _introPlayed;
+        Coroutine _introCo;
+        RectTransform[] _introLogos;
+        Vector2[] _introLogoBase;
+        Button[] _introBtns;
+        CanvasGroup[] _introBtnGroups;
+        float[] _introBtnBaseY;
+
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+        static void ResetIntroSession() => _introPlayed = false;
 
         void Awake()
         {
@@ -46,6 +59,7 @@ namespace GridCut.Game
             if (ThemeBtn != null) ThemeBtn.onClick.AddListener(ToggleThemePopup);
             if (ThemeCloseBtn != null) ThemeCloseBtn.onClick.AddListener(ToggleThemePopup);
             if (SettingsSoundBtn != null) SettingsSoundBtn.onClick.AddListener(ToggleSound);
+            if (SettingsMotionBtn != null) SettingsMotionBtn.onClick.AddListener(ToggleReduceMotion);
             if (SettingsResetBtn != null) SettingsResetBtn.onClick.AddListener(OnSettingsReset);
             if (SettingsCloseBtn != null) SettingsCloseBtn.onClick.AddListener(CloseSettings);
             ConfirmYes.onClick.AddListener(ConfirmReset);
@@ -70,6 +84,10 @@ namespace GridCut.Game
                 // dialog reset: label mengikuti pola menu (teks gelap pada tombol aksen)
                 Tint("ConfirmYes", ConfirmYes, c);
                 Tint("ConfirmNo", ConfirmNo, c);
+                Tint("SettingsSoundBtn", SettingsSoundBtn, c);
+                Tint("SettingsMotionBtn", SettingsMotionBtn, c);
+                Tint("SettingsCloseBtn", SettingsCloseBtn, c);
+                Tint("ThemeCloseBtn", ThemeCloseBtn, c);
             };
             _popupTint = c =>
             {
@@ -90,7 +108,9 @@ namespace GridCut.Game
                 UiFactory.FrameTint(ThemeBtn, false);    // sekunder (Tema)
                 UiFactory.FrameTint(SoundBtn, true);     // ikon bulat
                 UiFactory.FrameTint(ResetBtn, true);     // gear = pengaturan
+                StyleSettings();
             };
+            _accentTint = _ => StyleSettings();
             // keadaan tombol (spec): tekan-turun + alpha nonaktif
             UiFactory.PressFx(ContinueBtn, -16f);
             UiFactory.PressFx(SelectBtn, -12f);
@@ -104,12 +124,14 @@ namespace GridCut.Game
             RefreshLabels();
             RefreshThemeTint();
             if (_logoRow == null) BuildLogo();   // sprite Rounded belum siap saat Awake → coba lagi
+            // intro dimulai dari Show() setelah SaveStore.Load (opsi Kurangi gerakan terbaca)
             // applyImmediately: re-tint from the current theme on every appearance
             ThemeApplier.Subscribe(ThemeApplier.Role.Text, _textTint, true);
             ThemeApplier.Subscribe(ThemeApplier.Role.Primary, _primaryTint, true);
             ThemeApplier.Subscribe(ThemeApplier.Role.GridLine, _frameTint, true);
             ThemeApplier.Subscribe(ThemeApplier.Role.CellEmpty, _frameTint, true);
             ThemeApplier.Subscribe(ThemeApplier.Role.CellEmpty, _popupTint, true);
+            ThemeApplier.Subscribe(ThemeApplier.Role.Accent, _accentTint, true);
             if (_logoTints != null)
                 for (int i = 0; i < _logoTints.Length; i++)
                     ThemeApplier.Subscribe(ThemeApplier.Role.Rect, _logoTints[i], true, i % 6);
@@ -117,10 +139,13 @@ namespace GridCut.Game
 
         void OnDisable()
         {
+            if (_introCo != null) { StopCoroutine(_introCo); _introCo = null; }
+            SetIntroFinal();   // jangan tinggalkan alpha/posisi di tengah animasi
             ThemeApplier.Unsubscribe(_textTint);
             ThemeApplier.Unsubscribe(_popupTint);
             ThemeApplier.Unsubscribe(_primaryTint);
             ThemeApplier.Unsubscribe(_frameTint);
+            ThemeApplier.Unsubscribe(_accentTint);
             if (_logoTints != null)
                 foreach (var cb in _logoTints) ThemeApplier.Unsubscribe(cb);
             // never revive an overlay when Home reappears
@@ -143,6 +168,7 @@ namespace GridCut.Game
             if (SettingsPopup == null) SettingsPopup = UiFactory.WireGo(this, SettingsPopup, "SettingsPopup");
             if (ThemeCloseBtn == null) ThemeCloseBtn = UiFactory.Wire<Button>(this, ThemeCloseBtn, "ThemePopup/CloseBtn");
             if (SettingsSoundBtn == null) SettingsSoundBtn = UiFactory.Wire<Button>(this, SettingsSoundBtn, "SettingsPopup/SetSoundBtn");
+            if (SettingsMotionBtn == null) SettingsMotionBtn = UiFactory.Wire<Button>(this, SettingsMotionBtn, "SettingsPopup/Card/SetMotionBtn");
             if (SettingsResetBtn == null) SettingsResetBtn = UiFactory.Wire<Button>(this, SettingsResetBtn, "SettingsPopup/SetResetBtn");
             if (SettingsCloseBtn == null) SettingsCloseBtn = UiFactory.Wire<Button>(this, SettingsCloseBtn, "SettingsPopup/SetCloseBtn");
             if (MuteIcon == null) MuteIcon = UiFactory.Wire<Image>(this, MuteIcon, "SoundBtn/Icon");
@@ -256,6 +282,195 @@ namespace GridCut.Game
         {
             var lab = SettingsSoundBtn != null ? LabelOf(SettingsSoundBtn) : null;
             if (lab != null) lab.text = SaveStore.SoundOn ? "Suara: nyala" : "Suara: mati";
+            var motion = SettingsMotionBtn != null ? LabelOf(SettingsMotionBtn) : null;
+            if (motion != null) motion.text = SaveStore.ReduceMotion ? "Kurangi gerakan: nyala" : "Kurangi gerakan: mati";
+        }
+
+        void ToggleReduceMotion()
+        {
+            SaveStore.SetReduceMotion(!SaveStore.ReduceMotion);
+            RefreshSettingsLabels();
+            if (SaveStore.ReduceMotion && _introCo != null)
+            {
+                StopCoroutine(_introCo);
+                _introCo = null;
+                SetIntroFinal();
+            }
+            AudioService.Play("tap");
+        }
+
+        /// <summary>Tombol Pengaturan memakai resep sekunder; Reset Progres tetap
+        /// Aksen (tindakan destruktif) dengan label auto-kontras.</summary>
+        void StyleSettings()
+        {
+            UiFactory.FrameTint(SettingsSoundBtn, false);
+            UiFactory.FrameTint(SettingsMotionBtn, false);
+            UiFactory.FrameTint(SettingsCloseBtn, false);
+
+            if (SettingsResetBtn == null) return;
+            var accent = ThemeApplier.ColorOf(ThemeApplier.Role.Accent);
+            var img = SettingsResetBtn.GetComponent<Image>();
+            if (img != null) img.color = accent;
+            UiFactory.ApplyShadow(SettingsResetBtn, new Vector2(0f, -12f),
+                ThemeApplier.ColorOf(ThemeApplier.Role.ShadowAccent));
+            var fill = SettingsResetBtn.transform.Find("Fill");
+            if (fill != null) fill.gameObject.SetActive(false);
+            var lab = LabelOf(SettingsResetBtn);
+            if (lab != null) lab.color = ThemeApplier.ContrastTextOn(accent);
+        }
+
+        // ------------------------ intro menu (spec bagian 8) ------------------------
+
+        void PlayIntro()
+        {
+            if (_logoRow == null) return;
+
+            // Posisi huruf di-bake eksplisit di scene (tanpa HorizontalLayoutGroup)
+            // supaya animasi tidak bergantung pada layout pass pertama.
+            int n = _logoRow.childCount;
+            _introLogos = new RectTransform[n];
+            _introLogoBase = new Vector2[n];
+            for (int i = 0; i < n; i++)
+            {
+                _introLogos[i] = (RectTransform)_logoRow.GetChild(i);
+                _introLogoBase[i] = _introLogos[i].anchoredPosition;
+            }
+
+            _introBtns = new[] { ContinueBtn, SelectBtn, ThemeBtn };
+            int m = _introBtns.Length;
+            _introBtnGroups = new CanvasGroup[m];
+            _introBtnBaseY = new float[m];
+            for (int i = 0; i < m; i++)
+            {
+                var b = _introBtns[i];
+                if (b == null) continue;
+                var rt = (RectTransform)b.transform;
+                _introBtnBaseY[i] = rt.anchoredPosition.y;
+                var fx = b.GetComponent<ButtonFX>();
+                if (fx != null) fx.RebaseRest();   // posisi istirahat = sebelum intro
+                var g = b.GetComponent<CanvasGroup>();
+                if (g == null) g = b.gameObject.AddComponent<CanvasGroup>();
+                _introBtnGroups[i] = g;
+            }
+
+            if (_introPlayed || SaveStore.ReduceMotion)
+            {
+                _introPlayed = true;
+                SetIntroFinal();
+                return;
+            }
+            _introPlayed = true;
+
+            if (_introCo != null) StopCoroutine(_introCo);
+            _introCo = StartCoroutine(IntroCo());
+        }
+
+        IEnumerator IntroCo()
+        {
+            const float LogoDur = 0.35f;
+            const float LogoStagger = 0.06f;
+            const float LogoTotal = LogoDur + LogoStagger * 6f;
+            const float BtnDur = 0.25f;
+            const float BtnStagger = 0.08f;
+            const float BtnTotal = BtnDur + BtnStagger * 2f;
+
+            for (int i = 0; i < _introLogos.Length; i++)
+            {
+                var rt = _introLogos[i];
+                if (rt == null) continue;
+                rt.anchoredPosition = _introLogoBase[i] + new Vector2(0f, 40f);
+                rt.localScale = new Vector3(0f, 0f, 1f);
+            }
+            for (int i = 0; i < _introBtns.Length; i++)
+            {
+                var rt = _introBtns[i] != null ? (RectTransform)_introBtns[i].transform : null;
+                if (rt == null) continue;
+                var p = rt.anchoredPosition;
+                p.y = _introBtnBaseY[i] - 40f;
+                rt.anchoredPosition = p;
+                if (_introBtnGroups[i] != null) _introBtnGroups[i].alpha = 0f;
+            }
+
+            float elapsed = 0f;
+            while (elapsed < LogoTotal)
+            {
+                elapsed += Time.unscaledDeltaTime;
+                for (int i = 0; i < _introLogos.Length; i++)
+                {
+                    var rt = _introLogos[i];
+                    if (rt == null) continue;
+                    float local = elapsed - i * LogoStagger;
+                    float k = Mathf.Clamp01(local / LogoDur);
+                    rt.anchoredPosition = _introLogoBase[i] + new Vector2(0f, 40f * (1f - EaseOutBack(k)));
+                    float s = k < 0.7f
+                        ? Mathf.Lerp(0f, 1.15f, EaseOutCubic(k / 0.7f))
+                        : Mathf.Lerp(1.15f, 1f, EaseOutCubic((k - 0.7f) / 0.3f));
+                    rt.localScale = new Vector3(s, s, 1f);
+                }
+                yield return null;
+            }
+
+            float bt = 0f;
+            while (bt < BtnTotal)
+            {
+                bt += Time.unscaledDeltaTime;
+                for (int i = 0; i < _introBtns.Length; i++)
+                {
+                    var b = _introBtns[i];
+                    if (b == null) continue;
+                    var rt = (RectTransform)b.transform;
+                    float local = bt - i * BtnStagger;
+                    float k = Mathf.Clamp01(local / BtnDur);
+                    var p = rt.anchoredPosition;
+                    p.y = Mathf.Lerp(_introBtnBaseY[i] - 40f, _introBtnBaseY[i], EaseOutCubic(k));
+                    rt.anchoredPosition = p;
+                    if (_introBtnGroups[i] != null) _introBtnGroups[i].alpha = k;
+                }
+                yield return null;
+            }
+
+            SetIntroFinal();
+            _introCo = null;
+        }
+
+        void SetIntroFinal()
+        {
+            if (_introLogos != null && _introLogoBase != null)
+                for (int i = 0; i < _introLogos.Length; i++)
+                {
+                    var rt = _introLogos[i];
+                    if (rt == null) continue;
+                    rt.anchoredPosition = _introLogoBase[i];
+                    rt.localScale = Vector3.one;
+                }
+            if (_introBtns != null && _introBtnBaseY != null)
+                for (int i = 0; i < _introBtns.Length; i++)
+                {
+                    var b = _introBtns[i];
+                    if (b == null) continue;
+                    var rt = (RectTransform)b.transform;
+                    var p = rt.anchoredPosition;
+                    p.y = _introBtnBaseY[i];
+                    rt.anchoredPosition = p;
+                    if (_introBtnGroups[i] != null) _introBtnGroups[i].alpha = 1f;
+                    var fx = b.GetComponent<ButtonFX>();
+                    if (fx != null) fx.RebaseRest();
+                }
+        }
+
+        static float EaseOutCubic(float t)
+        {
+            t = Mathf.Clamp01(t);
+            float u = 1f - t;
+            return 1f - u * u * u;
+        }
+
+        static float EaseOutBack(float t)
+        {
+            const float c1 = 1.70158f;
+            const float c3 = c1 + 1f;
+            t = t - 1f;
+            return 1f + c3 * t * t * t + c1 * t * t;
         }
 
         public void StartContinue() => AppRoot.Instance.StartLevel(SaveStore.UnlockedLevel);
@@ -355,6 +570,7 @@ namespace GridCut.Game
             RefreshLabels();
             RefreshMuteIcon();      // sound may have been toggled on another screen
             RefreshThemeTint();
+            PlayIntro();            // spec bagian 8: hanya pembukaan pertama per sesi
         }
 
         void RefreshThemeTint()

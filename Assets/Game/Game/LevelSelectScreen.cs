@@ -266,27 +266,36 @@ namespace GridCut.Game
             GoToPage(delta.x < 0f ? 1 : -1);                   // geser kiri = halaman berikutnya
         }
 
-        /// <summary>Spec bagian 8: ubin aktif berdenyut pelan (Glow membesar & memudar).</summary>
+        /// <summary>Spec bagian 8: ubin aktif berdenyut — skala 1,0→1,04→1,0
+        /// (periode 1,4 dtk) dan alpha Glow 0,3→0,15. Kurangi gerakan = statis.</summary>
         IEnumerator PulseActive()
         {
-            float t = 0f;
+            const float Period = 1.4f;
             while (true)
             {
-                t += Time.unscaledDeltaTime;
-                float k = 0.5f + 0.5f * Mathf.Sin(t * 2.2f - Mathf.PI * 0.5f);
-                if (_activeGlow != null)
+                if (SaveStore.ReduceMotion)
                 {
-                    var img = _activeGlow.GetComponent<Image>();
-                    if (img != null)
-                    {
-                        var c = img.color;
-                        c.a = Mathf.Lerp(0.16f, 0.34f, k);
-                        img.color = c;
-                    }
-                    _activeGlow.localScale = Vector3.one * Mathf.Lerp(1f, 1.02f, k);
+                    SetPulse(1f, 0.3f);
+                    yield return null;
+                    continue;
                 }
+                float p = 0.5f - 0.5f * Mathf.Cos(Time.unscaledTime * (Mathf.PI * 2f / Period));
+                SetPulse(1f + 0.04f * p, Mathf.Lerp(0.3f, 0.15f, p));
                 yield return null;
             }
+        }
+
+        void SetPulse(float scale, float alpha)
+        {
+            if (_activeGlow == null) return;
+            var img = _activeGlow.GetComponent<Image>();
+            if (img != null)
+            {
+                var c = img.color;
+                c.a = alpha;
+                img.color = c;
+            }
+            _activeGlow.localScale = new Vector3(scale, scale, 1f);
         }
 
         // ------------------------------ resep ubin level ------------------------------
@@ -353,15 +362,17 @@ namespace GridCut.Game
                            : ThemeApplier.ColorOf(ThemeApplier.Role.GridLine));
         }
 
-        /// <summary>Spec bagian 8: tap level terkunci menggetarkan ubin.</summary>
+        /// <summary>Spec bagian 8: tap level terkunci menggetarkan ubin ±8 px,
+        /// tiga ayunan dalam 200 ms.</summary>
         IEnumerator Shake(RectTransform rt)
         {
             var base0 = rt.anchoredPosition;
-            const float Wobble = 7f, Step = 0.035f;
+            const float Wobble = 8f;
+            const float Step = 0.2f / 6f;
             for (int i = 0; i < 6; i++)
             {
                 rt.anchoredPosition = base0 + new Vector2(i % 2 == 0 ? Wobble : -Wobble, 0f);
-                yield return new WaitForSeconds(Step);
+                yield return new WaitForSecondsRealtime(Step);
             }
             rt.anchoredPosition = base0;
         }

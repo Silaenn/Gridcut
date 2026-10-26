@@ -198,14 +198,14 @@ namespace GridCut.Game
             var rt = go.GetComponent<RectTransform>();
             var basePos = rt.anchoredPosition;
             cg.alpha = 0f;
-            rt.anchoredPosition = basePos + new Vector2(32f, 0f);
+            rt.anchoredPosition = basePos + new Vector2(24f, 0f);
             const float dur = 0.2f;
             for (float t = 0f; t < dur;)
             {
                 t += Time.unscaledDeltaTime;
                 var k = Mathf.Clamp01(t / dur);
                 cg.alpha = k;
-                rt.anchoredPosition = basePos + new Vector2(32f * (1f - k), 0f);
+                rt.anchoredPosition = basePos + new Vector2(24f * (1f - k), 0f);
                 yield return null;
             }
             cg.alpha = 1f;

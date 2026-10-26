@@ -5,34 +5,38 @@ using UnityEngine.UI;
 namespace GridCut.Game
 {
     /// <summary>
-    /// Latar dekoratif spesifikasi bag. 2 + 5. Semua elemen sudah dibake di scene —
-    /// GO "Dots" (Image Tiled) dan enam kotak Rounded "Box0".."Box5" di bawah
-    /// Background. Kode tidak membuat objek runtime: hanya mewarnai peran tema
-    /// (Titik untuk pola, warna keping i%6 untuk kotak) dan menggerakkan kotak
-    /// naik-turun pelan. Nama BoxN = indeks warna keping (bukan urutan posisi).
+    /// Latar dekoratif spesifikasi bag. 2 + 5 + 8. Semua elemen sudah dibake di scene —
+    /// GO "Dots" (Image Tiled) dan enam kotak Rounded "Box0".."Box5" di bawah Background.
+    /// Satu Update menggerakkan keenam kotak: naik-turun sinus amplitudo 12 px dengan
+    /// periode acak 4–7 dtk dan fase acak, serta rotasi ±4° periode 6–9 dtk. Tidak ada
+    /// alokasi per frame. Gerak berhenti saat menu tidak tampil atau Kurangi gerakan aktif.
     /// </summary>
     public class BgDecor : MonoBehaviour
     {
         [Header("Tuning")]
         [Range(0f, 1f)] public float DotStrength = 0.45f;   // alpha titik
         [Range(0f, 1f)] public float BoxAlpha = 0.55f;      // alpha kotak (spec bag. 5)
-        public float BobAmplitude = 6f;                     // px, naik-turun
-        public float BobSpeed = 0.35f;                      // rad/detik
-        public float SwayAmplitude = 3f;                    // px, goyang horizontal
-        public float SwaySpeed = 0.23f;
+        public float Amplitude = 12f;                       // px, naik-turun
+        public float RotAmplitude = 4f;                     // derajat, rotasi
 
         struct DriftBox
         {
             public RectTransform Rt;
             public Image Img;
             public int ColorIndex;     // tint peran Rect i % 6
-            public Vector2 Base;       // posisi bake (pivot tengah)
-            public float Phase;
+            public Vector2 Base;       // posisi bake
+            public float BaseRotZ;     // rotasi bake
+            public float BobPeriod;    // 4–7 dtk
+            public float BobPhase;     // 0..2π
+            public float RotPeriod;    // 6–9 dtk
+            public float RotPhase;     // 0..2π
         }
 
         Image _dots;
         readonly List<DriftBox> _boxes = new List<DriftBox>();
         System.Action<Color> _tint;
+        bool _running;
+        bool _reducedApplied;
 
         void Awake()
         {
@@ -56,7 +60,11 @@ namespace GridCut.Game
                     Img = img,
                     ColorIndex = i,
                     Base = rt.anchoredPosition,
-                    Phase = i * 1.047f,      // 60° per kotak
+                    BaseRotZ = rt.localEulerAngles.z,
+                    BobPeriod = Random.Range(4f, 7f),
+                    BobPhase = Random.Range(0f, Mathf.PI * 2f),
+                    RotPeriod = Random.Range(6f, 9f),
+                    RotPhase = Random.Range(0f, Mathf.PI * 2f),
                 });
             }
 
@@ -69,27 +77,49 @@ namespace GridCut.Game
             if (_tint != null) ThemeApplier.Unsubscribe(_tint);
         }
 
-        /// <summary>Kotak dekorasi hanya tampil di menu utama (spec); layar lain
-        /// menyembunyikannya tanpa mengubah data bake di scene.</summary>
+        /// <summary>Kotak hanya tampil di menu utama; animasi ikut berhenti total
+        /// saat layar lain tampil (spec bagian 8).</summary>
         public void SetBoxesVisible(bool show)
         {
+            _running = show;
             for (int i = 0; i < _boxes.Count; i++)
             {
                 var go = _boxes[i].Rt.gameObject;
                 if (go.activeSelf != show) go.SetActive(show);
             }
+            if (show && SaveStore.ReduceMotion) ApplyStill();
         }
 
         void Update()
         {
+            if (!_running) return;
+
+            if (SaveStore.ReduceMotion)
+            {
+                if (!_reducedApplied) ApplyStill();
+                return;
+            }
+            _reducedApplied = false;
+
             float t = Time.unscaledTime;
             for (int i = 0; i < _boxes.Count; i++)
             {
                 var b = _boxes[i];
-                float ph = t * BobSpeed + b.Phase;
-                b.Rt.anchoredPosition = b.Base + new Vector2(
-                    Mathf.Sin(ph * 0.7f + 1.3f) * SwayAmplitude,
-                    Mathf.Sin(ph) * BobAmplitude);
+                float bob = Mathf.Sin((t / b.BobPeriod) * (Mathf.PI * 2f) + b.BobPhase) * Amplitude;
+                float rot = Mathf.Sin((t / b.RotPeriod) * (Mathf.PI * 2f) + b.RotPhase) * RotAmplitude;
+                b.Rt.anchoredPosition = new Vector2(b.Base.x, b.Base.y + bob);
+                b.Rt.localRotation = Quaternion.Euler(0f, 0f, b.BaseRotZ + rot);
+            }
+        }
+
+        void ApplyStill()
+        {
+            _reducedApplied = true;
+            for (int i = 0; i < _boxes.Count; i++)
+            {
+                var b = _boxes[i];
+                b.Rt.anchoredPosition = b.Base;
+                b.Rt.localRotation = Quaternion.Euler(0f, 0f, b.BaseRotZ);
             }
         }
 
