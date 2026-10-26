@@ -9,55 +9,80 @@ using GridCut.Core;
 namespace GridCut.Game
 {
     /// <summary>
-    /// Play screen (scene component). Board on the left, 360-unit control panel on
-    /// the right — fixed landscape layout baked in the scene, per spec §4–5. Only
-    /// the board interior is built at runtime.
+    /// Layar gameplay (spec bagian 7). Papan di kiri, kartu kontrol di kanan.
+    /// Kartu normal: 384 lebar, 48 dari kanan, padding 34, jarak 24, isi:
+    /// kembali 144, judul Bold 60 + sub Medium 32, Hint 312×168, baris Reset/Sound 144.
+    /// Kartu ringkas: 220 lebar, 32 dari kanan, padding 26, jarak 16, hanya ikon
+    /// + label "Lv N" Bold 44. Tanpa timer, progres, atau undo.
     /// </summary>
     public class GameplayScreen : MonoBehaviour
     {
         [Header("Wired in scene")]
         public BoardView Board;
-        public RectTransform BoardSlot;      // stretches to the board area
-        public RectTransform Panel;          // 360-unit side panel / bottom strip
-        public TMP_Text LevelLabel, ProgressLabel, TimeLabel;
-        public Button ResetBtn, HintBtn, BackBtn, MuteBtn;
+        public RectTransform BoardSlot;
+        public RectTransform Panel;
+        public RectTransform NormalRoot, CompactRoot;
+
+        [Header("Kartu normal")]
+        public Button BackBtn, HintBtn, ResetBtn, MuteBtn;
+        public TMP_Text LevelTitle, LevelSub;
+
+        [Header("Kartu ringkas")]
+        public Button BackBtnC, HintBtnC, ResetBtnC, MuteBtnC;
+        public TMP_Text LevelLabelC;
+
+        [Header("Tutorial (level 1–3)")]
+        public RectTransform TutorialPill;
+        public TMP_Text TutorialText;
+
+        [Header("Overlay menang")]
         public GameObject WinOverlay;
         public TMP_Text WinTitle, WinDetail;
         public Button WinNextBtn, WinMenuBtn, WinRepeatBtn;
-        public RectTransform WinStarsRow;              // 3 Image anak: Star0..2 (spec 160 px ×1.35)
-        public TMP_Text WinFinishMsg;                  // pesan pengganti Berikutnya di level terakhir
-        public GameObject WinBanner;                   // spanduk tema baru (spec 120 px ×1.35)
+        public RectTransform WinStarsRow;
+        public TMP_Text WinFinishMsg;
+        public GameObject WinBanner;
         public TMP_Text WinBannerLabel;
-        public Image[] BannerSwatches;                 // 3 kotak pratinjau warna tema
+        public Image[] BannerSwatches;
 
-        public event Action<int, int> LevelCompleted;   // levelId, stars — spec event umpan balik
+        public event Action<int, int> LevelCompleted;
 
         PuzzleSession _session;
         int _levelId;
         float _elapsed;
         bool _timerRun;
-        Action<Color> _textTint, _boardTint, _accentTint, _frameTint, _badgeTint, _primaryTint, _tutPrimaryTint;
-        Image _badgeBack, _badgeDisc;          // lencana Hint bake scene (lingkaran)
-        TMP_Text _badgeCount;                  // angka sisa hint di lencana
-        Coroutine _bannerCo;
-        GameObject _tutorial;
-        bool _panelCompact;
+        bool _isCompact;
 
-        // spec panel widths: 360/220 reference ×1.35 (app-wide rebake)
-        const float FullWidth = 486f;
-        const float CompactWidth = 297f;
+        Action<Color> _textTint, _mutedTint, _boardTint, _accentTint, _frameTint, _primaryTint, _badgeTint;
+        Image _badgeBack, _badgeDisc, _badgeBackC, _badgeDiscC;
+        TMP_Text _badgeCount, _badgeCountC;
+        Coroutine _bannerCo;
+
+        const float NormalCardW = 384f;
+        const float CompactCardW = 220f;
+        const float NormalMargin = 48f;
+        const float CompactMargin = 32f;
+        const float NormalHeight = 716f;
+        const float CompactHeight = 744f;
 
         void Awake()
         {
             AutoWire();
-            WireBadge();
-            ResetBtn.onClick.AddListener(DoReset);
-            HintBtn.onClick.AddListener(DoHint);
-            BackBtn.onClick.AddListener(DoBack);
-            if (MuteBtn != null) MuteBtn.onClick.AddListener(ToggleMute);
-            WinNextBtn.onClick.AddListener(NextLevel);
-            WinMenuBtn.onClick.AddListener(GoHome);
-            WinRepeatBtn.onClick.AddListener(Replay);
+            WireBadges();
+
+            Add(BackBtn, DoBack);
+            Add(BackBtnC, DoBack);
+            Add(HintBtn, DoHint);
+            Add(HintBtnC, DoHint);
+            Add(ResetBtn, DoReset);
+            Add(ResetBtnC, DoReset);
+            Add(MuteBtn, ToggleMute);
+            Add(MuteBtnC, ToggleMute);
+
+            Add(WinNextBtn, NextLevel);
+            Add(WinMenuBtn, GoHome);
+            Add(WinRepeatBtn, Replay);
+
             if (Board != null)
             {
                 Board.DragStarted += OnDragStarted;
@@ -66,41 +91,79 @@ namespace GridCut.Game
 
             _textTint = c =>
             {
-                if (LevelLabel != null) LevelLabel.color = c;
-                if (ProgressLabel != null) ProgressLabel.color = c;
-                if (TimeLabel != null) TimeLabel.color = c;
+                if (LevelTitle != null) LevelTitle.color = c;
+                if (LevelLabelC != null) LevelLabelC.color = c;
+                if (TutorialText != null) TutorialText.color = c;
                 if (WinTitle != null) WinTitle.color = c;
                 if (WinDetail != null) WinDetail.color = c;
                 if (WinFinishMsg != null) WinFinishMsg.color = c;
                 if (WinBannerLabel != null) WinBannerLabel.color = c;
             };
-            // Rebuild() is a no-op while Session is unset, so applyImmediately is safe
-            _boardTint = _ => Board.ApplyTheme();
+            _mutedTint = c => { if (LevelSub != null) LevelSub.color = c; };
+            _boardTint = _ => { if (Board != null) Board.ApplyTheme(); };
             _accentTint = c =>
             {
                 if (_badgeDisc != null) _badgeDisc.color = c;
                 if (_badgeCount != null) _badgeCount.color = ThemeApplier.ContrastTextOn(c);
+                if (_badgeDiscC != null) _badgeDiscC.color = c;
+                if (_badgeCountC != null) _badgeCountC.color = ThemeApplier.ContrastTextOn(c);
             };
-            _primaryTint = _ => UiFactory.PrimaryTint(HintBtn, -16f);
-            _badgeTint = c => { if (_badgeBack != null) _badgeBack.color = c; };
+            _primaryTint = _ =>
+            {
+                Primary(HintBtn);
+                Primary(HintBtnC);
+            };
+            _badgeTint = c =>
+            {
+                if (_badgeBack != null) _badgeBack.color = c;
+                if (_badgeBackC != null) _badgeBackC.color = c;
+            };
             _frameTint = _ =>
             {
-                UiFactory.FrameTint(BackBtn, true);    // ikon bulat (panah kembali)
-                UiFactory.FrameTint(ResetBtn, true);
-                UiFactory.FrameTint(MuteBtn, true);
-                if (Panel != null) UiFactory.CardTint(Panel);   // kartu panel kanan
+                Frame(BackBtn); Frame(ResetBtn); Frame(MuteBtn);
+                Frame(BackBtnC); Frame(ResetBtnC); Frame(MuteBtnC);
+                if (Panel != null) UiFactory.CardTint(Panel);
+                if (TutorialPill != null) UiFactory.CardTint(TutorialPill);
             };
-            // keadaan tombol (spec): tekan-turun + alpha nonaktif
+
             UiFactory.PressFx(HintBtn, -16f);
+            UiFactory.PressFx(HintBtnC, -16f);
             UiFactory.PressFx(BackBtn, -12f);
+            UiFactory.PressFx(BackBtnC, -12f);
             UiFactory.PressFx(ResetBtn, -12f);
+            UiFactory.PressFx(ResetBtnC, -12f);
             UiFactory.PressFx(MuteBtn, -12f);
+            UiFactory.PressFx(MuteBtnC, -12f);
+        }
+
+        static void Add(Button b, UnityEngine.Events.UnityAction a)
+        {
+            if (b != null) b.onClick.AddListener(a);
+        }
+
+        static void Frame(Button b) { if (b != null) UiFactory.FrameTint(b, true); }
+
+        static void Primary(Button b)
+        {
+            if (b == null) return;
+            UiFactory.PrimaryTint(b, -16f);
+            var lamp = b.transform.Find("LampIcon");
+            if (lamp != null)
+            {
+                var img = lamp.GetComponent<Image>();
+                if (img != null)
+                {
+                    var c = ThemeApplier.ContrastTextOn(ThemeApplier.ColorOf(ThemeApplier.Role.Primary));
+                    c.a = 1f;
+                    img.color = c;
+                }
+            }
         }
 
         void OnEnable()
         {
-            // applyImmediately: re-tint from the current theme on every appearance
             ThemeApplier.Subscribe(ThemeApplier.Role.Text, _textTint, true);
+            ThemeApplier.Subscribe(ThemeApplier.Role.TextMuted, _mutedTint, true);
             ThemeApplier.Subscribe(ThemeApplier.Role.CellEmpty, _boardTint, true);
             ThemeApplier.Subscribe(ThemeApplier.Role.GridLine, _boardTint, true);
             ThemeApplier.Subscribe(ThemeApplier.Role.Rect, _boardTint, true);
@@ -114,34 +177,40 @@ namespace GridCut.Game
         void OnDisable()
         {
             ThemeApplier.Unsubscribe(_textTint);
-            // _boardTint is registered on three roles; Unsubscribe clears all of them
+            ThemeApplier.Unsubscribe(_mutedTint);
             ThemeApplier.Unsubscribe(_boardTint);
             ThemeApplier.Unsubscribe(_accentTint);
-            ThemeApplier.Unsubscribe(_primaryTint);
             ThemeApplier.Unsubscribe(_frameTint);
+            ThemeApplier.Unsubscribe(_primaryTint);
             ThemeApplier.Unsubscribe(_badgeTint);
-            if (_tutPrimaryTint != null) ThemeApplier.Unsubscribe(_tutPrimaryTint);
-            // spec: gameplay disembunyikan membuang state input (drag yang berjalan)
             if (Board != null) Board.ClearPreview();
-            // WinOverlay tinggal di root Overlay (spec lapisan overlay), bukan anak
-            // Gameplay lagi — matikan manual agar tidak ikut ke layar sebelumnya.
             if (WinOverlay != null && WinOverlay.activeSelf) WinOverlay.SetActive(false);
         }
 
-        /// <summary>Recovers scene refs by child name when serialized wiring fails.</summary>
         void AutoWire()
         {
-            var t = transform;
             if (Board == null) Board = UiFactory.Wire<BoardView>(this, null, "BoardSlot/Board");
             if (BoardSlot == null) BoardSlot = UiFactory.Wire<RectTransform>(this, null, "BoardSlot");
             if (Panel == null) Panel = UiFactory.Wire<RectTransform>(this, null, "Panel");
-            if (LevelLabel == null) LevelLabel = UiFactory.Wire<TMP_Text>(this, null, "Panel/LevelLabel");
-            if (ProgressLabel == null) ProgressLabel = UiFactory.Wire<TMP_Text>(this, null, "Panel/ProgressLabel");
-            if (TimeLabel == null) TimeLabel = UiFactory.Wire<TMP_Text>(this, null, "Panel/TimeLabel");
-            if (ResetBtn == null) ResetBtn = UiFactory.Wire<Button>(this, null, "Panel/ResetBtn");
-            if (HintBtn == null) HintBtn = UiFactory.Wire<Button>(this, null, "Panel/HintBtn");
-            if (BackBtn == null) BackBtn = UiFactory.Wire<Button>(this, null, "Panel/BackBtn");
-            if (MuteBtn == null) MuteBtn = UiFactory.Wire<Button>(this, null, "Panel/MuteBtn");
+            if (NormalRoot == null) NormalRoot = UiFactory.Wire<RectTransform>(this, null, "Panel/NormalRoot");
+            if (CompactRoot == null) CompactRoot = UiFactory.Wire<RectTransform>(this, null, "Panel/CompactRoot");
+
+            BackBtn = UiFactory.Wire<Button>(this, BackBtn, "Panel/NormalRoot/BackSeat/BackBtn");
+            LevelTitle = UiFactory.Wire<TMP_Text>(this, LevelTitle, "Panel/NormalRoot/TitleBlock/LevelTitle");
+            LevelSub = UiFactory.Wire<TMP_Text>(this, LevelSub, "Panel/NormalRoot/TitleBlock/LevelSub");
+            HintBtn = UiFactory.Wire<Button>(this, HintBtn, "Panel/NormalRoot/HintSeat/HintBtn");
+            ResetBtn = UiFactory.Wire<Button>(this, ResetBtn, "Panel/NormalRoot/BottomRow/ResetSeat/ResetBtn");
+            MuteBtn = UiFactory.Wire<Button>(this, MuteBtn, "Panel/NormalRoot/BottomRow/SoundSeat/MuteBtn");
+
+            BackBtnC = UiFactory.Wire<Button>(this, BackBtnC, "Panel/CompactRoot/BackSeat/BackBtn");
+            LevelLabelC = UiFactory.Wire<TMP_Text>(this, LevelLabelC, "Panel/CompactRoot/LevelLabel");
+            HintBtnC = UiFactory.Wire<Button>(this, HintBtnC, "Panel/CompactRoot/HintSeat/HintBtn");
+            ResetBtnC = UiFactory.Wire<Button>(this, ResetBtnC, "Panel/CompactRoot/ResetSeat/ResetBtn");
+            MuteBtnC = UiFactory.Wire<Button>(this, MuteBtnC, "Panel/CompactRoot/SoundSeat/MuteBtn");
+
+            TutorialPill = UiFactory.Wire<RectTransform>(this, TutorialPill, "BoardSlot/TutorialPill");
+            TutorialText = UiFactory.Wire<TMP_Text>(this, TutorialText, "BoardSlot/TutorialPill/Text");
+
             if (WinOverlay == null) WinOverlay = UiFactory.WireGo(this, null, "WinOverlay");
             if (WinTitle == null) WinTitle = UiFactory.Wire<TMP_Text>(this, null, "WinOverlay/Card/WinTitle");
             if (WinDetail == null) WinDetail = UiFactory.Wire<TMP_Text>(this, null, "WinOverlay/Card/WinDetail");
@@ -157,14 +226,36 @@ namespace GridCut.Game
                 var sw = new List<Image>();
                 for (int i = 0; i < 3; i++)
                 {
-                    var swTr = transform.Find("WinBanner/Swatch" + i);
-                    if (swTr != null) { var im = swTr.GetComponent<Image>(); if (im != null) sw.Add(im); }
+                    var tr = transform.Find("WinBanner/Swatch" + i);
+                    if (tr != null)
+                    {
+                        var im = tr.GetComponent<Image>();
+                        if (im != null) sw.Add(im);
+                    }
                 }
                 if (sw.Count == 3) BannerSwatches = sw.ToArray();
             }
         }
 
-        // ------------------------------ flow -----------------------------------
+        void WireBadges()
+        {
+            _badgeBack = _badgeDisc = null; _badgeCount = null; _badgeBackC = _badgeDiscC = null; _badgeCountC = null;
+            WireBadge(HintBtn, out _badgeBack, out _badgeDisc, out _badgeCount);
+            WireBadge(HintBtnC, out _badgeBackC, out _badgeDiscC, out _badgeCountC);
+        }
+
+        static void WireBadge(Button b, out Image back, out Image disc, out TMP_Text count)
+        {
+            back = disc = null; count = null;
+            if (b == null) return;
+            var badge = b.transform.Find("HintBadge");
+            if (badge == null) return;
+            back = badge.GetComponent<Image>();
+            var d = badge.Find("Disc"); if (d != null) disc = d.GetComponent<Image>();
+            var c = badge.Find("Count"); if (c != null) count = c.GetComponent<TMP_Text>();
+        }
+
+        // ------------------------------ alur -----------------------------------
 
         public void Show(int levelId)
         {
@@ -172,7 +263,8 @@ namespace GridCut.Game
             var level = LevelRepository.Get(levelId);
             if (level == null) return;
 
-            ConfigurePanelMode(level.Cols, level.Rows);   // compact panel before the board sizes
+            ConfigurePanelMode(level.Cols, level.Rows);
+
             if (_session != null)
             {
                 _session.RectPlaced -= OnRectPlaced;
@@ -188,7 +280,6 @@ namespace GridCut.Game
             _session.SolvedChanged += OnSolved;
             _session.HintUsed += OnHintUsed;
 
-            // spec: melanjutkan mainan yang tersimpan bila levelnya sama
             if (SaveStore.TryLoadPlayState(out int pLevel, out int pHints, out var pRects)
                 && pLevel == levelId)
                 _session.Restore(pHints, pRects);
@@ -196,82 +287,109 @@ namespace GridCut.Game
             Board.SetLevel(_session);
             _elapsed = 0f;
             _timerRun = true;
-            LevelLabel.text = $"Level {_levelId}" + (level.IsTutorial ? " \u00b7 Latihan" : "");
-            TimeLabel.text = "0:00";
-            UpdateProgress();
-            UpdateHintLabel();
-            WinOverlay.SetActive(false);
-            if (_bannerCo != null) { StopCoroutine(_bannerCo); _bannerCo = null; }   // spanduk tema ikut reset
-            if (WinBanner != null) WinBanner.SetActive(false);
-            ShowTutorial(level.IsTutorial);   // spec: tutorial overlay above the grid (L1–3)
 
-            // tepi: state tersimpan adalah papan SELESAI (tab ditutup sebelum
-            // overlay sempat membuka) → jalankan alur menang normal, bukan macet
+            UpdateLevelLabels(level);
+            UpdateHintLabels();
+            RefreshSoundIcons();
+            ShowTutorial(level);
+
+            if (WinOverlay != null) WinOverlay.SetActive(false);
+            if (_bannerCo != null) { StopCoroutine(_bannerCo); _bannerCo = null; }
+            if (WinBanner != null) WinBanner.SetActive(false);
+
             if (_session.IsSolved) OnSolved(true);
         }
 
-        // --------------------------- panel layout modes --------------------------
-
-        /// <summary>
-        /// Spec: if the FULL panel would render a cell under 32 real px, switch to the
-        /// compact panel (icons only) before shrinking cells. Runs per level, before
-        /// the board builds.
-        /// </summary>
         void ConfigurePanelMode(int cols, int rows)
         {
-            if (BoardSlot == null || Panel == null || cols <= 0 || rows <= 0) return;
-            var s = BoardSlot.rect;
-            float widen = FullWidth - CompactWidth;                    // slot gains this in compact
-            float slotWFull = _panelCompact ? s.width - widen : s.width;
-            float slotWComp = _panelCompact ? s.width : s.width + widen;
-            float scale = Screen.height / 1080f;                       // canvas units → real px (match-height)
-            float realFull = BoardView.EstimateCell(slotWFull, s.height, cols, rows) * scale;
-            bool compact = realFull < 32f;
-            if (_panelCompact == compact) return;
-            _panelCompact = compact;
-            Panel.sizeDelta = new Vector2(compact ? CompactWidth : FullWidth, 0f);
-            BoardSlot.sizeDelta = new Vector2(-(compact ? CompactWidth : FullWidth), 0f);
-            if (LevelLabel != null) LevelLabel.gameObject.SetActive(!compact);
-            if (ProgressLabel != null) ProgressLabel.gameObject.SetActive(!compact);
-            if (TimeLabel != null) TimeLabel.gameObject.SetActive(!compact);
-            foreach (var b in new[] { BackBtn, HintBtn, ResetBtn, MuteBtn })
-            {
-                var t = b != null ? b.GetComponentInChildren<TMP_Text>(true) : null;
-                if (t != null) t.fontSize = compact ? 26f : 38f;
-            }
-            UpdateHintLabel();
-            RefreshMuteLabel();
+            if (BoardSlot == null || Panel == null) return;
+            var rt = (RectTransform)transform;
+            float cw = rt.rect.width;
+            float ch = rt.rect.height;
+
+            bool compact = BoardView.IsCompactFor(cw, ch, cols, rows);
+            _isCompact = compact;
+            Board.SetCompact(compact);
+
+            float areaW = cw - (compact ? 252f : 432f);
+            BoardSlot.anchorMin = new Vector2(0f, 0f);
+            BoardSlot.anchorMax = new Vector2(0f, 1f);
+            BoardSlot.pivot = new Vector2(0f, 0.5f);
+            BoardSlot.anchoredPosition = Vector2.zero;
+            BoardSlot.sizeDelta = new Vector2(areaW, 0f);
+
+            Panel.anchorMin = Panel.anchorMax = new Vector2(1f, 0.5f);
+            Panel.pivot = new Vector2(1f, 0.5f);
+            Panel.anchoredPosition = new Vector2(-(compact ? CompactMargin : NormalMargin), 0f);
+            Panel.sizeDelta = new Vector2(compact ? CompactCardW : NormalCardW,
+                compact ? CompactHeight : NormalHeight);
+
+            if (NormalRoot != null) NormalRoot.gameObject.SetActive(!compact);
+            if (CompactRoot != null) CompactRoot.gameObject.SetActive(compact);
         }
+
+        void UpdateLevelLabels(LevelData level)
+        {
+            string sub = level.IsTutorial ? "Tutorial" : $"{level.Cols} x {level.Rows}";
+            if (LevelTitle != null) LevelTitle.text = $"Level {_levelId}";
+            if (LevelSub != null) LevelSub.text = sub;
+            if (LevelLabelC != null) LevelLabelC.text = $"Lv {_levelId}";
+        }
+
+        void ShowTutorial(LevelData level)
+        {
+            if (TutorialPill == null) return;
+            bool on = level.IsTutorial;
+            TutorialPill.gameObject.SetActive(on);
+            if (!on || TutorialText == null) return;
+
+            TutorialText.text = TutorialCopy(level.Id);
+            TutorialText.ForceMeshUpdate();
+            float maxW = (BoardSlot != null ? BoardSlot.rect.width : 1488f) - 96f;
+            float w = Mathf.Min(TutorialText.preferredWidth + 56f, maxW);
+            TutorialPill.sizeDelta = new Vector2(Mathf.Max(120f, w), 96f);
+        }
+
+        static string TutorialCopy(int id) => id switch
+        {
+            1 => "Tarik di kisi untuk menutup angka",
+            2 => "Persegi baru menimpa persegi lama",
+            _ => "Tap persegi untuk menghapusnya",
+        };
 
         public void ToggleMute()
         {
             SaveStore.SetSound(!SaveStore.SoundOn);
-            RefreshMuteLabel();
+            RefreshSoundIcons();
             AudioService.Play("tap");
         }
 
-        void RefreshMuteLabel()
+        void RefreshSoundIcons()
         {
-            if (MuteBtn == null) return;
-            var t = MuteBtn.GetComponentInChildren<TMP_Text>(true);
-            if (t == null) return;
-            t.text = _panelCompact
-                ? (SaveStore.SoundOn ? "Nyala" : "Mati")
-                : (SaveStore.SoundOn ? "Suara: nyala" : "Suara: mati");
+            SetSoundIcons(MuteBtn);
+            SetSoundIcons(MuteBtnC);
+        }
+
+        static void SetSoundIcons(Button b)
+        {
+            if (b == null) return;
+            var on = b.transform.Find("IconOn");
+            var off = b.transform.Find("IconOff");
+            bool sound = SaveStore.SoundOn;
+            if (on != null) on.gameObject.SetActive(sound);
+            if (off != null) off.gameObject.SetActive(!sound);
         }
 
         void OnRectPlaced(int ci, RectI r)
         {
             Board.ShowPlaced();
-            UpdateProgress();
             AudioService.Play("place");
-            SavePlay();   // spec: state level dimainkan disimpan otomatis tiap perubahan
+            SavePlay();
         }
 
         void OnRectRemoved(int ci, RectI r)
         {
             Board.ShowPlaced();
-            UpdateProgress();
             AudioService.Play("tap");
             SavePlay();
         }
@@ -280,54 +398,31 @@ namespace GridCut.Game
 
         void OnHintUsed(int ci)
         {
-            UpdateHintLabel();
-            SavePlay();   // hint terpakai ikut tersimpan
+            UpdateHintLabels();
+            SavePlay();
         }
 
-        // spec event umpan balik (BoardView → GameplayScreen):
         void OnDragStarted()
         {
             if (_session != null && !_session.IsSolved) AudioService.Play("drag");
         }
 
-        void OnDragCellChanged()
-        {
-            // hook juice: preview sudah berpindah sendiri; tanpa sfx agar tidak
-            // becek saat geser cepat lintas sel
-        }
+        void OnDragCellChanged() { }
 
-        /// <summary>Simpan Rect + hint terpakai level ini. Dilewati saat solved —
-        /// menang memanggil ClearPlayState (level tidak lagi "sedang dimainkan").</summary>
         void SavePlay()
         {
             if (_session == null || _session.IsSolved) return;
             SaveStore.SavePlayState(_levelId, _session.HintCount, _session.Placed);
         }
 
-        /// <summary>Spec lencana: sisa Hint tampil sebagai angka di badge bulat
-        /// pojok kanan-atas tombol; tombol nonaktif saat 0. Label tombol cukup "Hint".</summary>
-        void UpdateHintLabel()
+        void UpdateHintLabels()
         {
             if (_session == null) return;
             int left = _session.HintsLeft;
             if (HintBtn != null) HintBtn.interactable = left > 0;
+            if (HintBtnC != null) HintBtnC.interactable = left > 0;
             if (_badgeCount != null) _badgeCount.text = left.ToString();
-            var lbl = HintBtn != null ? HintBtn.transform.Find("Label") : null;
-            var t = lbl != null ? lbl.GetComponent<TMP_Text>() : null;
-            if (t != null) t.text = "Hint";
-        }
-
-        /// <summary>Lencana Hint bake scene: anak tombol Hint berisi lingkaran
-        /// Permukaan + Disc Aksen + angka auto-kontras (spec bagian lencana).</summary>
-        void WireBadge()
-        {
-            var badge = HintBtn != null ? HintBtn.transform.Find("HintBadge") : null;
-            if (badge == null) return;
-            var disc = badge.Find("Disc");
-            var cnt = badge.Find("Count");
-            _badgeBack = badge.GetComponent<Image>();
-            _badgeDisc = disc != null ? disc.GetComponent<Image>() : null;
-            _badgeCount = cnt != null ? cnt.GetComponent<TMP_Text>() : null;
+            if (_badgeCountC != null) _badgeCountC.text = left.ToString();
         }
 
         void OnSolved(bool solved)
@@ -342,27 +437,26 @@ namespace GridCut.Game
         {
             Board.ClearPreview();
             int stars = _session.HintCount == 0 ? 3 : _session.HintCount <= 1 ? 2 : 1;
-            bool wasUnlocking = _levelId >= SaveStore.UnlockedLevel && _levelId < SaveStore.LevelCount;
+            bool unlocking = _levelId >= SaveStore.UnlockedLevel && _levelId < SaveStore.LevelCount;
             SaveStore.RecordWin(_levelId, stars);
-            SaveStore.ClearPlayState();   // menang: tidak ada lagi mainan utk dilanjutkan
+            SaveStore.ClearPlayState();
             int best = SaveStore.BestStars(_levelId);
 
-            WinTitle.text = "Selesai!";   // spec: judul overlay tetap
+            WinTitle.text = "Selesai!";
             WinDetail.text = $"Waktu {TimeSpan.FromSeconds(_elapsed):mm\\:ss}"
-                + (wasUnlocking ? "\nLevel baru terbuka!" : "");
+                + (unlocking ? "\nLevel baru terbuka!" : "");
             UiFactory.SetStars(WinStarsRow, best,
                 ThemeApplier.ColorOf(ThemeApplier.Role.Primary),
-                ThemeApplier.ColorOf(ThemeApplier.Role.GridLine));   // bintang kosong = Tepi (tabel bag. 4)
+                ThemeApplier.ColorOf(ThemeApplier.Role.GridLine));
             bool last = _levelId >= SaveStore.LevelCount;
             WinNextBtn.gameObject.SetActive(!last);
-            if (WinFinishMsg != null) WinFinishMsg.gameObject.SetActive(last);   // spec: pesan di level terakhir
+            if (WinFinishMsg != null) WinFinishMsg.gameObject.SetActive(last);
             WinOverlay.SetActive(true);
-            // peran warna overlay (tabel bag. 4): utama = Utama, lainnya bingkai Tepi
             UiFactory.PrimaryTint(WinNextBtn, -16f);
             UiFactory.FrameTint(WinRepeatBtn, true);
             UiFactory.FrameTint(WinMenuBtn, true);
             LevelCompleted?.Invoke(_levelId, stars);
-            if (wasUnlocking) AudioService.Play("unlock");
+            if (unlocking) AudioService.Play("unlock");
 
             var th = ThemeForUnlockedLevel();
             if (th != null) StartBanner(th);
@@ -370,14 +464,11 @@ namespace GridCut.Game
 
         static ThemeLibrary.Theme ThemeForUnlockedLevel()
         {
-            // spec literal: tema N terbuka SETELAH level N selesai →
-            // UnlockedLevel (level berikutnya yang terbuka) == N + 1
             foreach (var t in ThemeLibrary.All)
                 if (t.UnlockLevel + 1 == SaveStore.UnlockedLevel) return t;
             return null;
         }
 
-        // spec: spanduk 120 px (×1.35) turun dari atas, hadir total ≈2,5 detik
         void StartBanner(ThemeLibrary.Theme th)
         {
             if (_bannerCo != null) StopCoroutine(_bannerCo);
@@ -420,135 +511,6 @@ namespace GridCut.Game
             Show(Mathf.Min(_levelId + 1, SaveStore.LevelCount));
         }
 
-        // ------------------------------ tutorial --------------------------------
-
-        /// <summary>Spec: tutorial overlay (levels 1–3) floats above the grid, not the panel.</summary>
-        void ShowTutorial(bool tutorial)
-        {
-            if (!tutorial)
-            {
-                if (_tutorial != null) _tutorial.SetActive(false);
-                return;
-            }
-            if (_tutorial == null)
-            {
-                // slot tutorial diam-diam di scene (bake) — ambil bila ada
-                var baked = BoardSlot != null ? BoardSlot.Find("Tutorial") : null;
-                if (baked != null)
-                {
-                    _tutorial = baked.gameObject;
-                    WireBakedTutorial();
-                }
-            }
-            if (_tutorial == null) _tutorial = BuildTutorial();
-            _tutorial.transform.Find("Card").Find("Body").GetComponent<TMP_Text>().text = TutorialText(_levelId);
-            _tutorial.SetActive(true);
-        }
-
-        /// <summary>Sambung tutorial hasil bake scene: klik "Mengerti", tekan
-        /// tombol, dan resep tombol utama (peran Utama — tabel bag. 4).</summary>
-        void WireBakedTutorial()
-        {
-            var mBtn = _tutorial.transform.Find("Card/MengertiBtn");
-            if (mBtn == null) return;
-            var b = mBtn.GetComponent<Button>();
-            if (b != null)
-            {
-                b.onClick.AddListener(() =>
-                {
-                    _tutorial.SetActive(false);
-                    AudioService.Play("tap");
-                });
-                UiFactory.PressFx(b, -16f);
-            }
-            // warna tombol utama mengikuti peran Utama (subscribe agar ikut tema)
-            var btn = b;
-            UiFactory.PrimaryTint(btn, -16f);
-            if (_tutPrimaryTint == null)
-            {
-                _tutPrimaryTint = _ => { if (btn != null) UiFactory.PrimaryTint(btn, -16f); };
-                ThemeApplier.Subscribe(ThemeApplier.Role.Primary, _tutPrimaryTint, false);
-            }
-        }
-
-        static string TutorialText(int levelId) => levelId switch
-        {
-            1 => "Tarik di atas kisi untuk meletakkan persegi panjang.\n\n"
-               + "Angka di sel adalah luas persegi yang harus menutupinya.\n\n"
-               + "Setiap angka hanya boleh ditutup oleh satu persegi.",
-            2 => "Persegi baru yang menimpa persegi lama otomatis\nmenghapus yang lama.\n\n"
-               + "Tutup seluruh papan tanpa sisa.\n\n"
-               + "Salah menarik? Tap persegi untuk menghapusnya.",
-            _ => "Buntu? Reset mengosongkan papan.\n\n"
-               + "Hint meletakkan satu persegi yang benar,\ntetapi setiap Hint memangkas bintang.\n\n"
-               + "Setelah level ini, kisi kian besar dan kian menantang.",
-        };
-
-        GameObject BuildTutorial()
-        {
-            var rootGo = new GameObject("Tutorial", typeof(RectTransform), typeof(CanvasGroup));
-            var root = (RectTransform)rootGo.transform;
-            root.SetParent(BoardSlot, false);
-            root.anchorMin = Vector2.zero; root.anchorMax = Vector2.one;
-            root.offsetMin = Vector2.zero; root.offsetMax = Vector2.zero;
-
-            UiFactory.Panel(root, "Dim", new Color(0f, 0f, 0f, 0.45f), true);   // blocks board input
-
-            var cardGo = new GameObject("Card", typeof(RectTransform), typeof(Image));
-            var card = (RectTransform)cardGo.transform;
-            card.SetParent(root, false);
-            card.anchorMin = card.anchorMax = card.pivot = new Vector2(0.5f, 0.5f);
-            card.sizeDelta = new Vector2(640f, 640f);
-            cardGo.GetComponent<Image>().color = ThemeApplier.ColorOf(ThemeApplier.Role.CellEmpty);
-            // kartu tutorial = Rounded Sliced radius 48 (56/1.17) — tabel resep komponen
-            var cardImg = cardGo.GetComponent<Image>();
-            var cardRounded = AppRoot.Instance != null ? AppRoot.Instance.Rounded : null;
-            if (cardRounded != null)
-            {
-                cardImg.sprite = cardRounded;
-                cardImg.type = Image.Type.Sliced;
-                cardImg.pixelsPerUnitMultiplier = 1.17f;
-            }
-
-            var title = UiFactory.Text(card, "Title", "Cara Bermain", 46,
-                ThemeApplier.ColorOf(ThemeApplier.Role.Text), TMPro.TextAlignmentOptions.Center);
-            var trt = title.rectTransform;
-            trt.anchorMin = trt.anchorMax = trt.pivot = new Vector2(0.5f, 1f);
-            trt.sizeDelta = new Vector2(560f, 64f);
-            trt.anchoredPosition = new Vector2(0f, -40f);
-
-            var body = UiFactory.Text(card, "Body", "", 34,
-                ThemeApplier.ColorOf(ThemeApplier.Role.Text), TMPro.TextAlignmentOptions.TopLeft,
-                new Vector2(520f, 320f));
-            // teks tutorial = teks kecil → Fredoka-Medium (spesifikasi pemakaian font)
-            var medium = AppRoot.Instance != null ? AppRoot.Instance.FontMedium : null;
-            if (medium != null) body.font = medium;
-            body.enableWordWrapping = true;
-            var brt = body.rectTransform;
-            brt.anchorMin = brt.anchorMax = brt.pivot = new Vector2(0.5f, 1f);
-            brt.anchoredPosition = new Vector2(0f, -120f);
-
-            var btn = UiFactory.Button("MengertiBtn", card, "Mengerti", 40, () =>
-                {
-                    _tutorial.SetActive(false);
-                    AudioService.Play("tap");
-                },
-                new Vector2(320f, 130f), ThemeApplier.ColorOf(ThemeApplier.Role.Primary));
-            // tombol utama: bayangan tebal + label auto-kontras di atas warna Utama
-            var btnPrimary = ThemeApplier.ColorOf(ThemeApplier.Role.Primary);
-            UiFactory.ApplyShadow(btn.transform, new Vector2(0f, -16f), ThemeApplier.ColorOf(ThemeApplier.Role.ShadowPrimary));
-            UiFactory.PressFx(btn, -16f);
-            var btnLbl = btn.GetComponentInChildren<TMP_Text>();
-            if (btnLbl != null) btnLbl.color = ThemeApplier.ContrastTextOn(btnPrimary);
-            var art = btn.GetComponent<RectTransform>();
-            art.anchorMin = art.anchorMax = new Vector2(0.5f, 0f);
-            art.pivot = new Vector2(0.5f, 0f);
-            art.anchoredPosition = new Vector2(0f, 36f);
-
-            rootGo.SetActive(false);
-            return rootGo;
-        }
-
         public void Replay()
         {
             WinOverlay.SetActive(false);
@@ -570,14 +532,12 @@ namespace GridCut.Game
 
         public void DoReset() => _session.Reset();
 
-
         public void DoHint()
         {
             if (_session == null || _session.IsSolved || _session.HintsLeft <= 0) return;
             if (!_session.TryGetHintTarget(out int ci, out _)) return;
-            AudioService.Play("tap");   // spec: HintUsed = event umpan balik (terhitung tahap 1)
-            // spec hint bertingkat: kedipkan angka dulu, baru rect solusi ditempatkan
-            var session = _session;   // pengaman bila level berganti saat animasi jalan
+            AudioService.Play("tap");
+            var session = _session;
             Board.HintPulse(ci, () => session.ApplyHint(ci));
         }
 
@@ -587,15 +547,9 @@ namespace GridCut.Game
             AppRoot.Instance.NavBack();
         }
 
-        void UpdateProgress() => ProgressLabel.text = $"{_session.PlacedCount}/{_session.ClueCount}";
-
         void Update()
         {
-            if (_timerRun && TimeLabel != null)
-            {
-                _elapsed += Time.unscaledDeltaTime;
-                TimeLabel.text = $"{(int)_elapsed / 60}:{(int)_elapsed % 60:D2}";
-            }
+            if (_timerRun) _elapsed += Time.unscaledDeltaTime;
         }
     }
 }

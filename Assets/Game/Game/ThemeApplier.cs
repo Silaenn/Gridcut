@@ -164,7 +164,9 @@ namespace GridCut.Game
             if (_t >= 1f) return;
             _t = Mathf.Clamp01(_t + dt / TransitionSeconds);
             float e = _t * _t * (3f - 2f * _t);   // smoothstep — masuk/keluar mulus
-            foreach (var k in _cur.Keys) _cur[k] = Color.Lerp(_from[k], _to[k], e);
+            // salin kunci dulu: indexer Dictionary menaikkan versi enumerator
+            foreach (var k in new List<(Role, int)>(_cur.Keys))
+                _cur[k] = Color.Lerp(_from[k], _to[k], e);
             Fire();
         }
 
