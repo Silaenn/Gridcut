@@ -146,6 +146,13 @@ namespace GridCut.Game
 
         static void Frame(Button b) { if (b != null) UiFactory.FrameTint(b, true); }
 
+        static void RebaseButton(Button b)
+        {
+            if (b == null) return;
+            var fx = b.GetComponent<ButtonFX>();
+            if (fx != null) fx.RebaseRest();
+        }
+
         void OnEnable()
         {
             ThemeApplier.Subscribe(ThemeApplier.Role.Text, _textTint, true);
@@ -364,6 +371,7 @@ namespace GridCut.Game
             // yang lebih kecil (108) digeser ke atas agar jarak papan tetap 44.
             float hintTopCanvas = Board.HintCenterY + 64f;
             rt.anchoredPosition = new Vector2(0f, hintTopCanvas + canvasH * 0.5f - rt.rect.height);
+            RebaseButton(HintBtn);
         }
 
         public void ToggleMute()
@@ -448,7 +456,7 @@ namespace GridCut.Game
             SaveStore.RecordWin(_levelId, stars);
             SaveStore.ClearPlayState();
             bool unlocking = _levelId >= unlockedBefore && _levelId < SaveStore.LevelCount;
-            var theme = unlocking ? ThemeForUnlockedLevel() : null;
+            var theme = unlocking ? ThemeForUnlockedLevel(_levelId) : null;
 
             _winStarCount = stars;
             _winTheme = theme;
@@ -459,10 +467,11 @@ namespace GridCut.Game
             _winCo = StartCoroutine(WinSequence(prevBest, wasCompleted, theme));
         }
 
-        static ThemeLibrary.Theme ThemeForUnlockedLevel()
+        static ThemeLibrary.Theme ThemeForUnlockedLevel(int levelId)
         {
+            if (levelId <= 1) return null;   // Paper adalah tema awal, jangan diumumkan lagi
             foreach (var t in ThemeLibrary.All)
-                if (t.UnlockLevel + 1 == SaveStore.UnlockedLevel) return t;
+                if (t.UnlockLevel == levelId) return t;
             return null;
         }
 
@@ -526,6 +535,7 @@ namespace GridCut.Game
             yield return new WaitForSecondsRealtime(0.06f);
             yield return RiseButton(_repeatGroup, WinRepeatBtn != null ? (RectTransform)WinRepeatBtn.transform : null, _repeatRest);
 
+            RebaseButton(WinMenuBtn); RebaseButton(WinNextBtn); RebaseButton(WinRepeatBtn);
             EnableWinButtons(true);
             _winAnimating = false;
             _winIdle = 0f;
@@ -626,6 +636,7 @@ namespace GridCut.Game
 
             if (WinBanner != null) WinBanner.SetActive(false);
             if (WinNextBtn != null) WinNextBtn.transform.localScale = Vector3.one;
+            RebaseButton(WinMenuBtn); RebaseButton(WinNextBtn); RebaseButton(WinRepeatBtn);
             EnableWinButtons(false);
         }
 
@@ -669,6 +680,7 @@ namespace GridCut.Game
             }
             else if (WinBanner != null) WinBanner.SetActive(false);
 
+            RebaseButton(WinMenuBtn); RebaseButton(WinNextBtn); RebaseButton(WinRepeatBtn);
             EnableWinButtons(true);
             if (WinNextBtn != null) WinNextBtn.transform.localScale = Vector3.one;
             _winAnimating = false;
