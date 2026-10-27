@@ -558,7 +558,7 @@ namespace GridCut.Game
             // "terkunci" pada lebar kalimat sebelumnya saat teks berganti
             float pref = InstructionText.GetPreferredValues(text).x;
             InstructionText.text = text;
-            float w = Mathf.Min(1120f, pref + 96f);
+            float w = Mathf.Min(900f, pref + 96f);
             InstructionPill.sizeDelta = new Vector2(Mathf.Max(360f, w), 144f);
             InstructionText.ForceMeshUpdate();
         }
