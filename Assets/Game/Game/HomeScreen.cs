@@ -34,7 +34,7 @@ namespace GridCut.Game
         public TMP_Text MusicLabel, SfxLabel, MotionLabel;
         public Image MuteIcon, MuteIconOff, GearIcon, ThemeCard, SettingsCard;
         public Image ConfirmCard;
-        public TMP_Text ThemeTitle, SettingsTitle, ConfirmQuestion;
+        public TMP_Text ThemeTitle, ThemesHint, SettingsTitle, ConfirmQuestion;
         public Image ConfirmWarning, ConfirmMarkBar, ConfirmMarkDot;
         public GameObject ResetToast;
         public Image ThemeNewDot;          // titik Aksen di tombol Themes (opsional bag. 10)
@@ -272,6 +272,7 @@ namespace GridCut.Game
                 if (q != null) ConfirmQuestion = q.GetComponent<TMP_Text>();
             }
             if (ThemeTitle == null) ThemeTitle = WireRoot<TMP_Text>("Overlay/ThemePopup/Card/CardTitle");
+            if (ThemesHint == null) ThemesHint = WireRoot<TMP_Text>("Overlay/ThemePopup/Card/ThemesHint");
             if (SettingsTitle == null) SettingsTitle = WireRoot<TMP_Text>("Overlay/SettingsPopup/Card/CardTitle");
             if (ConfirmDialog == null) ConfirmDialog = UiFactory.WireGo(this, null, "ConfirmReset");
             if (ConfirmYes == null) ConfirmYes = WireRoot<Button>("Overlay/ConfirmReset/Card/Yes");
@@ -1023,6 +1024,17 @@ namespace GridCut.Game
             if (ThemeNewDot != null) ThemeNewDot.gameObject.SetActive(SaveStore.HasUnseenTheme());
         }
 
+        static bool AllThemesUnlocked()
+        {
+            for (int i = 0; i < ThemeLibrary.All.Length; i++)
+            {
+                var t = ThemeLibrary.All[i];
+                if (!(SaveStore.UnlockedLevel > t.UnlockLevel || t.UnlockLevel <= 1))
+                    return false;
+            }
+            return true;
+        }
+
         void RefreshThemeTint()
         {
             var edge = ThemeApplier.ColorOf(ThemeApplier.Role.GridLine);
@@ -1032,6 +1044,15 @@ namespace GridCut.Game
             var text = ThemeApplier.ColorOf(ThemeApplier.Role.Text);
             var muted = ThemeApplier.ColorOf(ThemeApplier.Role.TextMuted);
             var lockedFill = ThemeApplier.ColorOf(ThemeApplier.Role.Locked);
+
+            // Hint di bawah kartu tema harus ikut warna teks redup tema aktif;
+            // warna cokelat bake-nya tidak terbaca di Night/Neon.
+            if (ThemesHint != null)
+            {
+                ThemesHint.color = muted;
+                ThemesHint.text = AllThemesUnlocked()
+                    ? "All themes unlocked" : "Complete levels to unlock more themes";
+            }
 
             for (int i = 0; i < ThemeSwatches.Length && i < ThemeLibrary.All.Length; i++)
             {
