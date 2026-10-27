@@ -37,6 +37,6 @@ MonoBehaviour:
   DemoStartRow: 0
   DemoEndCol: 2
   DemoEndRow: 0
-  DemoDelay: 1.5
+  DemoDelay: 0.8
   HintEnabled: 0
   HintDelay: 8

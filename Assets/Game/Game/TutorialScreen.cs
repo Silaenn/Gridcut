@@ -563,7 +563,14 @@ namespace GridCut.Game
         void SetBottomSlot(bool hint)
         {
             if (Board == null) return;
-            float boardBottomScreen = 540f - (Board.BoardCenterY - Board.BoardHeight * 0.5f);
+            // hitung tepi bawah papan dari transform sebenarnya, bukan asumsi 1080:
+            // papan selalu di y=528 dari atas, jadi pada aspect lain tinggi canvas
+            // berubah dan rumus 540 lama bisa menaruh Continue menimpa papan
+            var rootRt = (RectTransform)transform;
+            var bRt = (RectTransform)Board.transform;
+            Vector3 bottomWorld = bRt.TransformPoint(new Vector3(0f, -bRt.rect.height * 0.5f, 0f));
+            Vector3 bottomLocal = rootRt.InverseTransformPoint(bottomWorld);
+            float boardBottomScreen = rootRt.rect.height * 0.5f - bottomLocal.y;
             // lesson 5: kotak progres 60 px di bawah Hint; rapatkan slot 20 px supaya
             // tombol + bayangannya tidak menimpa kotak (spesifikasi 964 bertabrakan
             // dengan slot Hint pada papan 4x4).
@@ -866,7 +873,7 @@ namespace GridCut.Game
                 else yield return DragDemo();
 
                 HideDemoVisuals();
-                yield return new WaitForSecondsRealtime(1f);
+                yield return new WaitForSecondsRealtime(0.6f);
             }
         }
 
