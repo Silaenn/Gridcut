@@ -45,8 +45,7 @@ namespace GridCut.Game
 
         PuzzleSession _session;
         int _levelId;
-        float _elapsed;
-        bool _timerRun;
+        bool _suppressRemoveFx;
 
         Action<Color> _textTint, _boardTint, _accentTint, _frameTint, _primaryTint, _badgeTint, _mutedTint;
         Image _badgeBack, _badgeDisc, _muteOn, _muteOff, _lamp;
@@ -77,12 +76,6 @@ namespace GridCut.Game
             Add(WinMenuBtn, GoHome);
             Add(WinRepeatBtn, Replay);
             Add(WinDimBtn, SkipWinAnimation);
-
-            if (Board != null)
-            {
-                Board.DragStarted += OnDragStarted;
-                Board.DragCellChanged += OnDragCellChanged;
-            }
 
             _textTint = c =>
             {
@@ -165,6 +158,13 @@ namespace GridCut.Game
             ThemeApplier.Subscribe(ThemeApplier.Role.GridLine, _frameTint, true);
             ThemeApplier.Subscribe(ThemeApplier.Role.CellEmpty, _frameTint, true);
             ThemeApplier.Subscribe(ThemeApplier.Role.GridLine, _badgeTint, true);
+            if (Board != null)
+            {
+                Board.DragStarted -= OnDragStarted;
+                Board.DragCellChanged -= OnDragCellChanged;
+                Board.DragStarted += OnDragStarted;
+                Board.DragCellChanged += OnDragCellChanged;
+            }
         }
 
         void OnDisable()
@@ -176,7 +176,12 @@ namespace GridCut.Game
             ThemeApplier.Unsubscribe(_frameTint);
             ThemeApplier.Unsubscribe(_primaryTint);
             ThemeApplier.Unsubscribe(_badgeTint);
-            if (Board != null) Board.ClearPreview();
+            if (Board != null)
+            {
+                Board.DragStarted -= OnDragStarted;
+                Board.DragCellChanged -= OnDragCellChanged;
+                Board.ClearPreview();
+            }
             CloseWin();
         }
 
@@ -345,9 +350,6 @@ namespace GridCut.Game
             Board.SetLevel(_session);
             if (Board != null) { Board.PlaceGate = null; Board.TapGate = null; }
             if (ResetBtn != null) ResetBtn.interactable = true;
-            _elapsed = 0f;
-            _timerRun = true;
-
             LevelTitle.text = $"Level {_levelId}";
             UpdateHintLabel();
             RefreshMuteIcons();
@@ -392,6 +394,8 @@ namespace GridCut.Game
         void OnRectPlaced(int ci, RectI r)
         {
             Board.ShowPlaced();
+            Board.PlayPlaceFx(ci, r);
+            Board.PulseClue(ci);
             AudioService.Play("place");
             SavePlay();
         }
@@ -399,6 +403,7 @@ namespace GridCut.Game
         void OnRectRemoved(int ci, RectI r)
         {
             Board.ShowPlaced();
+            if (!_suppressRemoveFx) Board.PlayRemoveFx(ci, r);
             AudioService.Play("tap");
             SavePlay();
         }
@@ -439,7 +444,6 @@ namespace GridCut.Game
         void OnSolved(bool solved)
         {
             if (!solved) return;
-            _timerRun = false;
             UpdateHintLabel();
             AudioService.Play("win");
             if (Board != null)
@@ -929,7 +933,9 @@ namespace GridCut.Game
             if (_session == null) return;
             Board.CancelHint();
             Board.ClearPreview();
+            _suppressRemoveFx = true;
             _session.Reset();
+            _suppressRemoveFx = false;
             Board.ShowPlaced();
             UpdateHintLabel();
             SavePlay();
@@ -947,13 +953,11 @@ namespace GridCut.Game
 
         public void DoBack()
         {
-            _timerRun = false;
             AppRoot.Instance.NavBack();
         }
 
         void Update()
         {
-            if (_timerRun) _elapsed += Time.unscaledDeltaTime;
             if (!_winOpen || _winAnimating) return;
 
             if (!SaveStore.ReduceMotion)

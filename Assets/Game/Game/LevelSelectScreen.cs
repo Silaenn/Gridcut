@@ -27,6 +27,7 @@ namespace GridCut.Game
         const float FlipSeconds = 0.18f;    // transisi halaman (panah & geser sama)
 
         int _page;
+        static int _lastAnimatedUnlocked = -1;
         RectTransform _dots;
         Image[] _dotImgs;
         CanvasGroup _gridGroup, _prevGroup, _nextGroup;
@@ -37,6 +38,9 @@ namespace GridCut.Game
         Action<Color> _textTint, _frameTint, _dotsTint;
 
         static int PageCount => Mathf.Max(1, Mathf.CeilToInt(SaveStore.LevelCount / (float)PerPage));
+
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+        static void ResetProgressAnim() => _lastAnimatedUnlocked = -1;
 
         void Awake()
         {
@@ -183,6 +187,65 @@ namespace GridCut.Game
             if (GridContent != null)
                 GridContent.anchoredPosition = new Vector2(0f, GridContent.anchoredPosition.y);
             Populate();
+            if (!SaveStore.ReduceMotion && _lastAnimatedUnlocked != SaveStore.UnlockedLevel)
+            {
+                _lastAnimatedUnlocked = SaveStore.UnlockedLevel;
+                StartCoroutine(ProgressIntro());
+            }
+        }
+
+        IEnumerator ProgressIntro()
+        {
+            if (GridContent == null) yield break;
+            int start = _page * PerPage + 1;
+            int slot = SaveStore.UnlockedLevel - start;
+            RectTransform btn = null;
+            if (slot >= 0 && slot < GridContent.childCount)
+            {
+                var seat = GridContent.GetChild(slot);
+                if (seat.gameObject.activeSelf) btn = seat.Find("Btn") as RectTransform;
+            }
+            if (btn != null) yield return PopTile(btn);
+
+            int prevId = SaveStore.UnlockedLevel - 1;
+            int prevSlot = prevId - start;
+            if (prevId < 1 || prevSlot < 0 || prevSlot >= GridContent.childCount) yield break;
+            var row = GridContent.GetChild(prevSlot).Find("Btn/Content/stars");
+            if (row == null) yield break;
+            int filled = SaveStore.BestStars(prevId);
+            for (int i = 0; i < filled && i < row.childCount; i++)
+            {
+                var star = row.GetChild(i) as RectTransform;
+                if (star == null) continue;
+                yield return PopStar(star);
+                yield return new WaitForSecondsRealtime(0.06f);
+            }
+        }
+
+        static IEnumerator PopTile(RectTransform rt)
+        {
+            for (float t = 0f; t < 0.25f; t += Time.unscaledDeltaTime)
+            {
+                float k = Mathf.Clamp01(t / 0.25f);
+                float s = k < 0.5f ? Mathf.Lerp(0.92f, 1.03f, k / 0.5f)
+                                   : Mathf.Lerp(1.03f, 1f, (k - 0.5f) / 0.5f);
+                rt.localScale = new Vector3(s, s, 1f);
+                yield return null;
+            }
+            rt.localScale = Vector3.one;
+        }
+
+        static IEnumerator PopStar(RectTransform rt)
+        {
+            for (float t = 0f; t < 0.2f; t += Time.unscaledDeltaTime)
+            {
+                float k = Mathf.Clamp01(t / 0.2f);
+                float s = k < 0.5f ? Mathf.Lerp(0f, 1.15f, k / 0.5f)
+                                   : Mathf.Lerp(1.15f, 1f, (k - 0.5f) / 0.5f);
+                rt.localScale = new Vector3(s, s, 1f);
+                yield return null;
+            }
+            rt.localScale = Vector3.one;
         }
 
         void Populate()

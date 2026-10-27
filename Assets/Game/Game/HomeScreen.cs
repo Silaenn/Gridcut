@@ -48,7 +48,6 @@ namespace GridCut.Game
         static bool _introPlayed;
         Coroutine _introCo;
         Coroutine _lockedHint;
-        Coroutine _toastCo;
         bool _themeRepaintPending;
         RectTransform[] _introLogos;
         Vector2[] _introLogoBase;
@@ -62,6 +61,7 @@ namespace GridCut.Game
         void Awake()
         {
             AutoWire();
+            SetupResetStatus();
 
             ContinueBtn.onClick.AddListener(StartContinue);
             SelectBtn.onClick.AddListener(OpenLevelSelect);
@@ -190,7 +190,6 @@ namespace GridCut.Game
             if (_introCo != null) { StopCoroutine(_introCo); _introCo = null; }
             if (_lockedHint != null) { StopCoroutine(_lockedHint); _lockedHint = null; }
             if (_knobCo != null) { StopCoroutine(_knobCo); _knobCo = null; }
-            if (_toastCo != null) { StopCoroutine(_toastCo); _toastCo = null; }
             if (ResetToast != null) ResetToast.SetActive(false);
             SetIntroFinal();   // jangan tinggalkan alpha/posisi di tengah animasi
             ThemeApplier.Unsubscribe(_textTint);
@@ -403,6 +402,7 @@ namespace GridCut.Game
         {
             var p = PopupOf(SettingsPopup);
             if (p == null) return;
+            if (ResetToast != null) ResetToast.SetActive(false);   // status hanya setelah reset
             RefreshSettingsLabels();
             p.Show();
             AudioService.Play("tap");
@@ -413,6 +413,7 @@ namespace GridCut.Game
             // jaring pengaman bila popup ditutup saat slider masih di-drag
             if (MusicSlider != null) SaveStore.SetMusicVolume(MusicSlider.value);
             if (SfxSlider != null) SaveStore.SetSfxVolume(SfxSlider.value);
+            if (ResetToast != null) ResetToast.SetActive(false);
             var p = PopupOf(SettingsPopup);
             if (p != null) p.Hide();
             AudioService.Play("tap");
@@ -543,6 +544,7 @@ namespace GridCut.Game
 
             UiFactory.FrameTint(ReplayTutorialBtn, false);
             UiFactory.FrameTint(SettingsResetBtn, true);   // ikon sampah ikut warna Teks
+            StyleResetStatus();
             if (SettingsResetBtn != null)
             {
                 var trash = SettingsResetBtn.transform.Find("Icon");
@@ -812,8 +814,7 @@ namespace GridCut.Game
                 _themeRepaintPending = true;
             }
 
-            HidePopupNow(ConfirmDialog);
-            HidePopupNow(SettingsPopup);   // kedua popup tertutup
+            HidePopupNow(ConfirmDialog);   // Pengaturan tetap terbuka untuk status inline
 
             RefreshLabels();               // tombol utama kembali "Play"
             RefreshThemeTint();
@@ -823,25 +824,74 @@ namespace GridCut.Game
             if (ConfirmYes != null) ConfirmYes.interactable = true;
             if (ConfirmNo != null) ConfirmNo.interactable = true;
             ClearConfirmSelection();
-            ShowResetToast();
+            ShowResetStatus();
             AudioService.Play("tap");
         }
 
-        void ShowResetToast()
+        /// <summary>Pindahkan pill status ke dalam kartu Pengaturan, tepat di atas
+        /// baris tombol. Status tidak lagi muncul-menguap di dekat menu.</summary>
+        void SetupResetStatus()
         {
-            if (_toastCo != null) StopCoroutine(_toastCo);
-            _toastCo = StartCoroutine(ResetToastCo());
+            if (ResetToast == null || SettingsCard == null) return;
+            var rt = (RectTransform)ResetToast.transform;
+            rt.SetParent(SettingsCard.transform, false);
+            rt.anchorMin = rt.anchorMax = new Vector2(0.5f, 0.5f);
+            rt.pivot = new Vector2(0.5f, 0.5f);
+            rt.anchoredPosition = new Vector2(0f, 266f);   // subjudul di bawah "Settings"
+            rt.sizeDelta = new Vector2(1000f, 56f);
+            ResetToast.SetActive(false);
+            StyleResetStatus();
         }
 
-        IEnumerator ResetToastCo()
+        void ShowResetStatus()
         {
-            if (ResetToast == null) { _toastCo = null; yield break; }
+            if (ResetToast == null) return;
+            var lab = ResetToast.GetComponentInChildren<TMP_Text>(true);
+            if (lab != null) lab.text = "Progress reset \u2014 back to Level 1";
+            StyleResetStatus();
             ResetToast.SetActive(true);
             var cg = ResetToast.GetComponent<CanvasGroup>();
-            if (cg != null) cg.alpha = 1f;
-            yield return new WaitForSecondsRealtime(1.5f);
-            ResetToast.SetActive(false);
-            _toastCo = null;
+            if (cg == null) cg = ResetToast.AddComponent<CanvasGroup>();
+            if (SaveStore.ReduceMotion)
+            {
+                cg.alpha = 1f;
+                return;
+            }
+            StartCoroutine(FadeResetStatus(cg));
+        }
+
+        IEnumerator FadeResetStatus(CanvasGroup cg)
+        {
+            cg.alpha = 0f;
+            for (float t = 0f; t < 0.15f; t += Time.unscaledDeltaTime)
+            {
+                cg.alpha = Mathf.Clamp01(t / 0.15f);
+                yield return null;
+            }
+            cg.alpha = 1f;
+        }
+
+        void StyleResetStatus()
+        {
+            if (ResetToast == null) return;
+            // Hanya teks: latar pill dimatikan supaya terbaca sebagai subjudul kartu.
+            var img = ResetToast.GetComponent<Image>();
+            if (img != null) img.enabled = false;
+            var fill = ResetToast.transform.Find("Fill");
+            var fillImg = fill != null ? fill.GetComponent<Image>() : null;
+            if (fillImg != null) fillImg.enabled = false;
+            var sh = ResetToast.GetComponent<Shadow>();
+            if (sh != null) sh.enabled = false;
+            var lab = ResetToast.GetComponentInChildren<TMP_Text>(true);
+            if (lab != null)
+            {
+                lab.color = ThemeApplier.ColorOf(ThemeApplier.Role.Accent);
+                lab.fontSize = 30f;
+                lab.alignment = TextAlignmentOptions.Center;
+                lab.raycastTarget = false;
+                if (AppRoot.Instance != null && AppRoot.Instance.FontMedium != null)
+                    lab.font = AppRoot.Instance.FontMedium;
+            }
         }
 
         public void SelectTheme(int index)
@@ -867,6 +917,21 @@ namespace GridCut.Game
             RefreshThemeTint();
             _themeRepaintPending = true;
             AudioService.Play("tap");
+            if (!SaveStore.ReduceMotion && btn != null)
+                StartCoroutine(PopThemeCard((RectTransform)btn.transform));
+        }
+
+        IEnumerator PopThemeCard(RectTransform rt)
+        {
+            for (float t = 0f; t < 0.2f; t += Time.unscaledDeltaTime)
+            {
+                float k = Mathf.Clamp01(t / 0.2f);
+                float s = k < 0.5f ? Mathf.Lerp(1f, 1.06f, k / 0.5f)
+                                   : Mathf.Lerp(1.06f, 1f, (k - 0.5f) / 0.5f);
+                rt.localScale = new Vector3(s, s, 1f);
+                yield return null;
+            }
+            rt.localScale = Vector3.one;
         }
 
         /// <summary>Opsional spek: pill terkunci sesaat menampilkan sisa level.</summary>

@@ -7,7 +7,7 @@ namespace GridCut.Game
 {
     /// <summary>
     /// Keadaan tombol (spec bagian 8):
-    /// - hover desktop: naik 4 px & jarak bayangan +4 dalam 100 ms;
+    /// - hover desktop: naik 10 px & jarak bayangan +10 dalam 100 ms;
     /// - ditekan: turun (|ShadowDy| − 4) px & jarak bayangan 4 dalam 100 ms;
     /// - nonaktif: CanvasGroup alpha 0,45 + Button.interactable.
     /// Menempel otomatis lewat AppRoot.BakeButtonFeel dan per tombol resep PressFx.
@@ -46,6 +46,20 @@ namespace GridCut.Game
 
         void Update()
         {
+            if (SaveStore.ReduceMotion)
+            {
+                if (_tween != null) { StopCoroutine(_tween); _tween = null; }
+                _hover = false;
+                _pressed = false;
+                if (_rt != null && _restKnown)
+                {
+                    var p = _rt.anchoredPosition;
+                    p.y = _restY;
+                    _rt.anchoredPosition = p;
+                }
+                if (_shadow != null) _shadow.effectDistance = new Vector2(0f, ShadowDy);
+            }
+
             bool inter = _btn == null || _btn.interactable;
             if (inter == _interactable) return;
             _interactable = inter;
@@ -54,6 +68,9 @@ namespace GridCut.Game
             {
                 _hover = false;
                 _pressed = false;
+                // PastikanRest() harus dipanggil SEBELUM membaca _restY: kalau tidak,
+                // tombol yang belum pernah di-hover akan memakai nilai awal 0 dan naik.
+                PastikanRest();
                 TweenKe(_restY, ShadowDy);
             }
         }
@@ -61,7 +78,10 @@ namespace GridCut.Game
         public void OnPointerEnter(PointerEventData eventData)
         {
             if (!_interactable) return;
-            if (eventData != null && eventData.pointerId >= 0) return;   // sentuh: tanpa hover
+            // InputSystemUIInputModule memakai deviceId sebagai pointerId (mouse = 1),
+            // jadi pointerId >= 0 bukan penanda sentuh. Cek tipe pointer-nya.
+            if (eventData is UnityEngine.InputSystem.UI.ExtendedPointerEventData ext
+                && ext.pointerType == UnityEngine.InputSystem.UI.UIPointerType.Touch) return;
             PastikanRest();
             _hover = true;
             if (!_pressed) TweenKe(_restY + HoverNaik, ShadowDy - HoverNaik);
@@ -120,6 +140,15 @@ namespace GridCut.Game
             if (_rt == null) return;
             PastikanRest();
             if (_tween != null) StopCoroutine(_tween);
+            if (SaveStore.ReduceMotion)
+            {
+                _tween = null;
+                var p = _rt.anchoredPosition;
+                p.y = _restY;
+                _rt.anchoredPosition = p;
+                if (_shadow != null) _shadow.effectDistance = new Vector2(0f, ShadowDy);
+                return;
+            }
             _tween = StartCoroutine(Animasi(targetY, targetShadow));
         }
 

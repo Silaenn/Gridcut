@@ -34,6 +34,8 @@ namespace GridCut.Game
         public event System.Action Rejected;
         public RectTransform DemoLayer { get; private set; }
 
+        static readonly Color InvalidPreview = new Color(0.88f, 0.31f, 0.35f, 1f);
+
         public event System.Action DragStarted;
         public event System.Action DragCellChanged;
 
@@ -424,6 +426,7 @@ namespace GridCut.Game
 
         System.Collections.IEnumerator CelebrateCo()
         {
+            StartCoroutine(BoardGlowCo());
             var pieces = new List<Image>();
             for (int i = 0; i < _rectFill.Count; i++)
                 if (_rectFill[i] != null && _rectFill[i].gameObject.activeSelf) pieces.Add(_rectFill[i]);
@@ -441,6 +444,170 @@ namespace GridCut.Game
             }
             for (int i = 0; i < pieces.Count; i++)
                 pieces[i].rectTransform.localScale = Vector3.one;
+        }
+
+        // ------------------------- feedback keping -------------------------
+
+        /// <summary>Pop kecil pada keping yang baru terpasang + kilat tipis.</summary>
+        public void PlayPlaceFx(int owner, in RectI rect)
+        {
+            if (SaveStore.ReduceMotion) return;
+            Image img = null;
+            if (owner >= 0 && owner < _rectFill.Count) img = _rectFill[owner];
+            else
+            {
+                Vector2 wantPos = PieceCenter(rect);
+                Vector2 wantSize = new Vector2(PieceSpan(rect.W), PieceSpan(rect.H));
+                for (int i = 0; i < _neutralFill.Count; i++)
+                {
+                    var n = _neutralFill[i];
+                    if (n == null || !n.gameObject.activeSelf) continue;
+                    if ((n.rectTransform.anchoredPosition - wantPos).sqrMagnitude < 1f
+                        && (n.rectTransform.sizeDelta - wantSize).sqrMagnitude < 1f)
+                    { img = n; break; }
+                }
+            }
+            if (img != null) StartCoroutine(PiecePopCo(img.rectTransform));
+            StartCoroutine(PlaceFlashCo(rect));
+        }
+
+        System.Collections.IEnumerator PiecePopCo(RectTransform rt)
+        {
+            Vector3 rest = rt.localScale;
+            for (float t = 0f; t < 0.16f; t += Time.unscaledDeltaTime)
+            {
+                float k = Mathf.Clamp01(t / 0.16f);
+                float s = k < 0.5f ? Mathf.Lerp(0.92f, 1.04f, k / 0.5f)
+                                   : Mathf.Lerp(1.04f, 1f, (k - 0.5f) / 0.5f);
+                rt.localScale = new Vector3(rest.x * s, rest.y * s, rest.z);
+                yield return null;
+            }
+            rt.localScale = rest;
+        }
+
+        System.Collections.IEnumerator PlaceFlashCo(RectI rect)
+        {
+            var go = new GameObject("placeFx", typeof(RectTransform), typeof(Image));
+            var rt = (RectTransform)go.transform;
+            rt.SetParent(_pieces, false);
+            rt.anchorMin = rt.anchorMax = rt.pivot = new Vector2(0.5f, 0.5f);
+            rt.sizeDelta = new Vector2(PieceSpan(rect.W), PieceSpan(rect.H));
+            rt.anchoredPosition = PieceCenter(rect);
+            rt.SetAsLastSibling();
+            var im = go.GetComponent<Image>();
+            im.sprite = AppRoot.Instance != null ? AppRoot.Instance.Rounded : null;
+            im.type = Image.Type.Sliced;
+            im.pixelsPerUnitMultiplier = 56f / Mathf.Clamp(0.23f * Cell, 16f, 32f);
+            im.raycastTarget = false;
+            var c = ThemeApplier.ColorOf(ThemeApplier.Role.Accent);
+            for (float t = 0f; t < 0.18f; t += Time.unscaledDeltaTime)
+            {
+                float k = Mathf.Clamp01(t / 0.18f);
+                c.a = 0.3f * (1f - k);
+                im.color = c;
+                float s = 1f + 0.02f * k;
+                rt.localScale = new Vector3(s, s, 1f);
+                yield return null;
+            }
+            Destroy(go);
+        }
+
+        /// <summary>Keping menghilang: salinan kecil mengecil + memudar.</summary>
+        public void PlayRemoveFx(int owner, in RectI rect)
+        {
+            if (SaveStore.ReduceMotion) return;
+            StartCoroutine(RemoveFxCo(owner, rect));
+        }
+
+        System.Collections.IEnumerator RemoveFxCo(int owner, RectI rect)
+        {
+            var go = new GameObject("removeFx", typeof(RectTransform), typeof(Image));
+            var rt = (RectTransform)go.transform;
+            rt.SetParent(_pieces, false);
+            rt.anchorMin = rt.anchorMax = rt.pivot = new Vector2(0.5f, 0.5f);
+            rt.sizeDelta = new Vector2(PieceSpan(rect.W), PieceSpan(rect.H));
+            rt.anchoredPosition = PieceCenter(rect);
+            rt.SetAsLastSibling();
+            var root = go.GetComponent<Image>();
+            float radius = Mathf.Clamp(0.23f * Cell, 16f, 32f);
+            MakePieceRoot(root, radius);
+            MakePieceFill(root, radius);
+            Color frame, fill;
+            if (owner >= 0 && owner < Session.Puzzle.ClueCount)
+            {
+                int ci = Session.Puzzle.Clues[owner].ColorIndex;
+                frame = ThemeApplier.ColorOf(ThemeApplier.Role.RectEdge, ci);
+                fill = ThemeApplier.ColorOf(ThemeApplier.Role.Rect, ci);
+            }
+            else
+            {
+                var gl = ThemeApplier.ColorOf(ThemeApplier.Role.GridLine);
+                frame = new Color(gl.r, gl.g, gl.b, 0.45f);
+                fill = new Color(gl.r, gl.g, gl.b, 0.55f);
+            }
+            TintPiece(root, frame, fill);
+            var cg = go.AddComponent<CanvasGroup>();
+            for (float t = 0f; t < 0.16f; t += Time.unscaledDeltaTime)
+            {
+                float k = Mathf.Clamp01(t / 0.16f);
+                cg.alpha = 1f - k;
+                float s = 1f - 0.15f * k;
+                rt.localScale = new Vector3(s, s, 1f);
+                yield return null;
+            }
+            Destroy(go);
+        }
+
+        /// <summary>Angka clue berdenyut kecil saat areanya terpasang.</summary>
+        public void PulseClue(int clueIndex)
+        {
+            if (SaveStore.ReduceMotion || clueIndex < 0 || _clues == null) return;
+            var t = _clues.Find($"clue{clueIndex}") as RectTransform;
+            if (t != null) StartCoroutine(CluePopCo(t));
+        }
+
+        System.Collections.IEnumerator CluePopCo(RectTransform rt)
+        {
+            Vector3 rest = rt.localScale;
+            for (float t = 0f; t < 0.2f; t += Time.unscaledDeltaTime)
+            {
+                float k = Mathf.Clamp01(t / 0.2f);
+                float s = k < 0.5f ? Mathf.Lerp(1f, 1.18f, k / 0.5f)
+                                   : Mathf.Lerp(1.18f, 1f, (k - 0.5f) / 0.5f);
+                rt.localScale = new Vector3(rest.x * s, rest.y * s, rest.z);
+                yield return null;
+            }
+            rt.localScale = rest;
+        }
+
+        System.Collections.IEnumerator BoardGlowCo()
+        {
+            var ring = AppRoot.Instance != null ? AppRoot.Instance.RoundedRing : null;
+            if (DemoLayer == null || ring == null) yield break;
+            var go = new GameObject("winGlow", typeof(RectTransform), typeof(Image));
+            var rt = (RectTransform)go.transform;
+            rt.SetParent(DemoLayer, false);
+            rt.anchorMin = rt.anchorMax = rt.pivot = new Vector2(0.5f, 0.5f);
+            rt.sizeDelta = new Vector2(BoardWidth, BoardHeight);
+            rt.anchoredPosition = Vector2.zero;
+            rt.SetAsLastSibling();
+            var im = go.GetComponent<Image>();
+            im.sprite = ring;
+            im.type = Image.Type.Sliced;
+            im.fillCenter = false;
+            im.pixelsPerUnitMultiplier = 56f / 48f;
+            im.raycastTarget = false;
+            var c = ThemeApplier.ColorOf(ThemeApplier.Role.Accent);
+            for (float t = 0f; t < 0.6f; t += Time.unscaledDeltaTime)
+            {
+                float k = Mathf.Clamp01(t / 0.6f);
+                c.a = 0.5f * Mathf.Sin(k * Mathf.PI);
+                im.color = c;
+                float s = 1f + 0.012f * Mathf.Sin(k * Mathf.PI);
+                rt.localScale = new Vector3(s, s, 1f);
+                yield return null;
+            }
+            Destroy(go);
         }
 
         public void ShowPlaced()
@@ -695,10 +862,14 @@ namespace GridCut.Game
             if (_rejectCo != null) { StopCoroutine(_rejectCo); _rejectCo = null; }
             if (_previewGroup != null) _previewGroup.alpha = 1f;
             var rect = PuzzleSession.Snap(_dc0, _dr0, _dc1, _dr1, Cols, Rows);
-            var accent = ThemeApplier.ColorOf(ThemeApplier.Role.Accent);
-            var fill = accent; fill.a = 0.3f;
+            // Jangan bocorkan apakah rect cocok dengan clue sebelum dilepas:
+            // semua rect yang boleh dipasang tetap Aksen. Merah hanya untuk
+            // gerbang yang benar-benar menolak (tutorial/akhir level).
+            bool allowed = PlaceGate == null || PlaceGate(rect);
+            var tone = allowed ? ThemeApplier.ColorOf(ThemeApplier.Role.Accent) : InvalidPreview;
+            var fill = tone; fill.a = allowed ? 0.3f : 0.2f;
             _pFill.color = fill;
-            _pRing.color = accent;
+            _pRing.color = tone;
             _previewRt.SetAsLastSibling();
             _previewRt.anchorMin = _previewRt.anchorMax = new Vector2(0.5f, 0.5f);
             _previewRt.sizeDelta = new Vector2(PieceSpan(rect.W), PieceSpan(rect.H));

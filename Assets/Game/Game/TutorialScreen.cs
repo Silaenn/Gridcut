@@ -362,7 +362,12 @@ namespace GridCut.Game
         {
             if (_stepDone) return;
             AudioService.Play("place");
-            if (Board != null) Board.ShowPlaced();
+            if (Board != null)
+            {
+                Board.ShowPlaced();
+                Board.PlayPlaceFx(owner, rect);
+                Board.PulseClue(owner);
+            }
             if (_session.IsSolved) { CompleteStep(); return; }
             // target berikutnya: sorotan & demo pindah ke keping yang belum terpasang
             BuildDemoVisuals();
@@ -372,7 +377,11 @@ namespace GridCut.Game
         void OnRectRemoved(int owner, RectI rect)
         {
             AudioService.Play("tap");
-            if (Board != null) Board.ShowPlaced();
+            if (Board != null)
+            {
+                Board.ShowPlaced();
+                Board.PlayRemoveFx(owner, rect);
+            }
             // Lesson 4: keping salah dihapus → lanjut menyelesaikan papan
             if (_index == 3 && !_tapDone)
             {
