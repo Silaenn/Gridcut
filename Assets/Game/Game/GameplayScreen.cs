@@ -9,31 +9,17 @@ using GridCut.Core;
 namespace GridCut.Game
 {
     /// <summary>
-    /// Layar gameplay (spec bagian 7). Papan di kiri, kartu kontrol di kanan.
-    /// Kartu normal: 384 lebar, 48 dari kanan, padding 34, jarak 24, isi:
-    /// kembali 144, judul Bold 60 + sub Medium 32, Hint 312×168, baris Reset/Sound 144.
-    /// Kartu ringkas: 220 lebar, 32 dari kanan, padding 26, jarak 16, hanya ikon
-    /// + label "Lv N" Bold 44. Tanpa timer, progres, atau undo.
+    /// Layar gameplay (spec bagian 7 revisi): grid di tengah, tanpa panel samping.
+    /// Kontrol atas: Back kiri, judul Level N tengah, Reset+Sound kanan.
+    /// Tombol Hint 380×128 di bawah grid. Tidak ada timer/progres/undo.
     /// </summary>
     public class GameplayScreen : MonoBehaviour
     {
         [Header("Wired in scene")]
         public BoardView Board;
         public RectTransform BoardSlot;
-        public RectTransform Panel;
-        public RectTransform NormalRoot, CompactRoot;
-
-        [Header("Kartu normal")]
-        public Button BackBtn, HintBtn, ResetBtn, MuteBtn;
-        public TMP_Text LevelTitle, LevelSub;
-
-        [Header("Kartu ringkas")]
-        public Button BackBtnC, HintBtnC, ResetBtnC, MuteBtnC;
-        public TMP_Text LevelLabelC;
-
-        [Header("Tutorial (level 1–3)")]
-        public RectTransform TutorialPill;
-        public TMP_Text TutorialText;
+        public Button BackBtn, ResetBtn, MuteBtn, HintBtn;
+        public TMP_Text LevelTitle;
 
         [Header("Overlay menang")]
         public GameObject WinOverlay;
@@ -51,33 +37,21 @@ namespace GridCut.Game
         int _levelId;
         float _elapsed;
         bool _timerRun;
-        bool _isCompact;
 
-        Action<Color> _textTint, _mutedTint, _boardTint, _accentTint, _frameTint, _primaryTint, _badgeTint;
-        Image _badgeBack, _badgeDisc, _badgeBackC, _badgeDiscC;
-        TMP_Text _badgeCount, _badgeCountC;
+        Action<Color> _textTint, _boardTint, _accentTint, _frameTint, _primaryTint, _badgeTint;
+        Image _badgeBack, _badgeDisc, _muteOn, _muteOff, _lamp;
+        TMP_Text _badgeCount;
         Coroutine _bannerCo;
-
-        const float NormalCardW = 384f;
-        const float CompactCardW = 220f;
-        const float NormalMargin = 48f;
-        const float CompactMargin = 32f;
-        const float NormalHeight = 716f;
-        const float CompactHeight = 744f;
 
         void Awake()
         {
             AutoWire();
-            WireBadges();
+            WireBadge();
 
             Add(BackBtn, DoBack);
-            Add(BackBtnC, DoBack);
-            Add(HintBtn, DoHint);
-            Add(HintBtnC, DoHint);
             Add(ResetBtn, DoReset);
-            Add(ResetBtnC, DoReset);
             Add(MuteBtn, ToggleMute);
-            Add(MuteBtnC, ToggleMute);
+            Add(HintBtn, DoHint);
 
             Add(WinNextBtn, NextLevel);
             Add(WinMenuBtn, GoHome);
@@ -92,48 +66,37 @@ namespace GridCut.Game
             _textTint = c =>
             {
                 if (LevelTitle != null) LevelTitle.color = c;
-                if (LevelLabelC != null) LevelLabelC.color = c;
-                if (TutorialText != null) TutorialText.color = c;
                 if (WinTitle != null) WinTitle.color = c;
                 if (WinDetail != null) WinDetail.color = c;
                 if (WinFinishMsg != null) WinFinishMsg.color = c;
                 if (WinBannerLabel != null) WinBannerLabel.color = c;
             };
-            _mutedTint = c => { if (LevelSub != null) LevelSub.color = c; };
             _boardTint = _ => { if (Board != null) Board.ApplyTheme(); };
             _accentTint = c =>
             {
                 if (_badgeDisc != null) _badgeDisc.color = c;
                 if (_badgeCount != null) _badgeCount.color = ThemeApplier.ContrastTextOn(c);
-                if (_badgeDiscC != null) _badgeDiscC.color = c;
-                if (_badgeCountC != null) _badgeCountC.color = ThemeApplier.ContrastTextOn(c);
             };
-            _primaryTint = _ =>
-            {
-                Primary(HintBtn);
-                Primary(HintBtnC);
-            };
-            _badgeTint = c =>
-            {
-                if (_badgeBack != null) _badgeBack.color = c;
-                if (_badgeBackC != null) _badgeBackC.color = c;
-            };
+            _badgeTint = c => { if (_badgeBack != null) _badgeBack.color = c; };
             _frameTint = _ =>
             {
                 Frame(BackBtn); Frame(ResetBtn); Frame(MuteBtn);
-                Frame(BackBtnC); Frame(ResetBtnC); Frame(MuteBtnC);
-                if (Panel != null) UiFactory.CardTint(Panel);
-                if (TutorialPill != null) UiFactory.CardTint(TutorialPill);
+            };
+            _primaryTint = _ =>
+            {
+                if (HintBtn != null) UiFactory.PrimaryTint(HintBtn, -16f);
+                if (_lamp != null)
+                {
+                    var c = ThemeApplier.ContrastTextOn(ThemeApplier.ColorOf(ThemeApplier.Role.Primary));
+                    c.a = 1f;
+                    _lamp.color = c;
+                }
             };
 
             UiFactory.PressFx(HintBtn, -16f);
-            UiFactory.PressFx(HintBtnC, -16f);
             UiFactory.PressFx(BackBtn, -12f);
-            UiFactory.PressFx(BackBtnC, -12f);
             UiFactory.PressFx(ResetBtn, -12f);
-            UiFactory.PressFx(ResetBtnC, -12f);
             UiFactory.PressFx(MuteBtn, -12f);
-            UiFactory.PressFx(MuteBtnC, -12f);
         }
 
         static void Add(Button b, UnityEngine.Events.UnityAction a)
@@ -143,27 +106,9 @@ namespace GridCut.Game
 
         static void Frame(Button b) { if (b != null) UiFactory.FrameTint(b, true); }
 
-        static void Primary(Button b)
-        {
-            if (b == null) return;
-            UiFactory.PrimaryTint(b, -16f);
-            var lamp = b.transform.Find("LampIcon");
-            if (lamp != null)
-            {
-                var img = lamp.GetComponent<Image>();
-                if (img != null)
-                {
-                    var c = ThemeApplier.ContrastTextOn(ThemeApplier.ColorOf(ThemeApplier.Role.Primary));
-                    c.a = 1f;
-                    img.color = c;
-                }
-            }
-        }
-
         void OnEnable()
         {
             ThemeApplier.Subscribe(ThemeApplier.Role.Text, _textTint, true);
-            ThemeApplier.Subscribe(ThemeApplier.Role.TextMuted, _mutedTint, true);
             ThemeApplier.Subscribe(ThemeApplier.Role.CellEmpty, _boardTint, true);
             ThemeApplier.Subscribe(ThemeApplier.Role.GridLine, _boardTint, true);
             ThemeApplier.Subscribe(ThemeApplier.Role.Rect, _boardTint, true);
@@ -171,13 +116,12 @@ namespace GridCut.Game
             ThemeApplier.Subscribe(ThemeApplier.Role.Primary, _primaryTint, true);
             ThemeApplier.Subscribe(ThemeApplier.Role.GridLine, _frameTint, true);
             ThemeApplier.Subscribe(ThemeApplier.Role.CellEmpty, _frameTint, true);
-            ThemeApplier.Subscribe(ThemeApplier.Role.CellEmpty, _badgeTint, true);
+            ThemeApplier.Subscribe(ThemeApplier.Role.GridLine, _badgeTint, true);
         }
 
         void OnDisable()
         {
             ThemeApplier.Unsubscribe(_textTint);
-            ThemeApplier.Unsubscribe(_mutedTint);
             ThemeApplier.Unsubscribe(_boardTint);
             ThemeApplier.Unsubscribe(_accentTint);
             ThemeApplier.Unsubscribe(_frameTint);
@@ -191,25 +135,11 @@ namespace GridCut.Game
         {
             if (Board == null) Board = UiFactory.Wire<BoardView>(this, null, "BoardSlot/Board");
             if (BoardSlot == null) BoardSlot = UiFactory.Wire<RectTransform>(this, null, "BoardSlot");
-            if (Panel == null) Panel = UiFactory.Wire<RectTransform>(this, null, "Panel");
-            if (NormalRoot == null) NormalRoot = UiFactory.Wire<RectTransform>(this, null, "Panel/NormalRoot");
-            if (CompactRoot == null) CompactRoot = UiFactory.Wire<RectTransform>(this, null, "Panel/CompactRoot");
-
-            BackBtn = UiFactory.Wire<Button>(this, BackBtn, "Panel/NormalRoot/BackSeat/BackBtn");
-            LevelTitle = UiFactory.Wire<TMP_Text>(this, LevelTitle, "Panel/NormalRoot/TitleBlock/LevelTitle");
-            LevelSub = UiFactory.Wire<TMP_Text>(this, LevelSub, "Panel/NormalRoot/TitleBlock/LevelSub");
-            HintBtn = UiFactory.Wire<Button>(this, HintBtn, "Panel/NormalRoot/HintSeat/HintBtn");
-            ResetBtn = UiFactory.Wire<Button>(this, ResetBtn, "Panel/NormalRoot/BottomRow/ResetSeat/ResetBtn");
-            MuteBtn = UiFactory.Wire<Button>(this, MuteBtn, "Panel/NormalRoot/BottomRow/SoundSeat/MuteBtn");
-
-            BackBtnC = UiFactory.Wire<Button>(this, BackBtnC, "Panel/CompactRoot/BackSeat/BackBtn");
-            LevelLabelC = UiFactory.Wire<TMP_Text>(this, LevelLabelC, "Panel/CompactRoot/LevelLabel");
-            HintBtnC = UiFactory.Wire<Button>(this, HintBtnC, "Panel/CompactRoot/HintSeat/HintBtn");
-            ResetBtnC = UiFactory.Wire<Button>(this, ResetBtnC, "Panel/CompactRoot/ResetSeat/ResetBtn");
-            MuteBtnC = UiFactory.Wire<Button>(this, MuteBtnC, "Panel/CompactRoot/SoundSeat/MuteBtn");
-
-            TutorialPill = UiFactory.Wire<RectTransform>(this, TutorialPill, "BoardSlot/TutorialPill");
-            TutorialText = UiFactory.Wire<TMP_Text>(this, TutorialText, "BoardSlot/TutorialPill/Text");
+            if (BackBtn == null) BackBtn = UiFactory.Wire<Button>(this, null, "BackBtn");
+            if (LevelTitle == null) LevelTitle = UiFactory.Wire<TMP_Text>(this, null, "LevelTitle");
+            if (ResetBtn == null) ResetBtn = UiFactory.Wire<Button>(this, null, "ResetBtn");
+            if (MuteBtn == null) MuteBtn = UiFactory.Wire<Button>(this, null, "MuteBtn");
+            if (HintBtn == null) HintBtn = UiFactory.Wire<Button>(this, null, "HintBtn");
 
             if (WinOverlay == null) WinOverlay = UiFactory.WireGo(this, null, "WinOverlay");
             if (WinTitle == null) WinTitle = UiFactory.Wire<TMP_Text>(this, null, "WinOverlay/Card/WinTitle");
@@ -237,22 +167,26 @@ namespace GridCut.Game
             }
         }
 
-        void WireBadges()
+        void WireBadge()
         {
-            _badgeBack = _badgeDisc = null; _badgeCount = null; _badgeBackC = _badgeDiscC = null; _badgeCountC = null;
-            WireBadge(HintBtn, out _badgeBack, out _badgeDisc, out _badgeCount);
-            WireBadge(HintBtnC, out _badgeBackC, out _badgeDiscC, out _badgeCountC);
-        }
-
-        static void WireBadge(Button b, out Image back, out Image disc, out TMP_Text count)
-        {
-            back = disc = null; count = null;
-            if (b == null) return;
-            var badge = b.transform.Find("HintBadge");
-            if (badge == null) return;
-            back = badge.GetComponent<Image>();
-            var d = badge.Find("Disc"); if (d != null) disc = d.GetComponent<Image>();
-            var c = badge.Find("Count"); if (c != null) count = c.GetComponent<TMP_Text>();
+            var badge = HintBtn != null ? HintBtn.transform.Find("HintBadge") : null;
+            if (badge != null)
+            {
+                var disc = badge.Find("Disc");
+                var cnt = badge.Find("Count");
+                _badgeBack = badge.GetComponent<Image>();
+                _badgeDisc = disc != null ? disc.GetComponent<Image>() : null;
+                _badgeCount = cnt != null ? cnt.GetComponent<TMP_Text>() : null;
+            }
+            _lamp = HintBtn != null && HintBtn.transform.Find("LampIcon") != null
+                ? HintBtn.transform.Find("LampIcon").GetComponent<Image>() : null;
+            if (MuteBtn != null)
+            {
+                var on = MuteBtn.transform.Find("IconOn");
+                var off = MuteBtn.transform.Find("IconOff");
+                _muteOn = on != null ? on.GetComponent<Image>() : null;
+                _muteOff = off != null ? off.GetComponent<Image>() : null;
+            }
         }
 
         // ------------------------------ alur -----------------------------------
@@ -262,8 +196,6 @@ namespace GridCut.Game
             _levelId = levelId;
             var level = LevelRepository.Get(levelId);
             if (level == null) return;
-
-            ConfigurePanelMode(level.Cols, level.Rows);
 
             if (_session != null)
             {
@@ -288,96 +220,44 @@ namespace GridCut.Game
             _elapsed = 0f;
             _timerRun = true;
 
-            UpdateLevelLabels(level);
-            UpdateHintLabels();
-            RefreshSoundIcons();
-            ShowTutorial(level);
+            LevelTitle.text = $"Level {_levelId}";
+            UpdateHintLabel();
+            RefreshMuteIcons();
 
             if (WinOverlay != null) WinOverlay.SetActive(false);
             if (_bannerCo != null) { StopCoroutine(_bannerCo); _bannerCo = null; }
             if (WinBanner != null) WinBanner.SetActive(false);
 
+            PositionHint();
             if (_session.IsSolved) OnSolved(true);
         }
 
-        void ConfigurePanelMode(int cols, int rows)
+        void PositionHint()
         {
-            if (BoardSlot == null || Panel == null) return;
-            var rt = (RectTransform)transform;
-            float cw = rt.rect.width;
-            float ch = rt.rect.height;
-
-            bool compact = BoardView.IsCompactFor(cw, ch, cols, rows);
-            _isCompact = compact;
-            Board.SetCompact(compact);
-
-            float areaW = cw - (compact ? 252f : 432f);
-            BoardSlot.anchorMin = new Vector2(0f, 0f);
-            BoardSlot.anchorMax = new Vector2(0f, 1f);
-            BoardSlot.pivot = new Vector2(0f, 0.5f);
-            BoardSlot.anchoredPosition = Vector2.zero;
-            BoardSlot.sizeDelta = new Vector2(areaW, 0f);
-
-            Panel.anchorMin = Panel.anchorMax = new Vector2(1f, 0.5f);
-            Panel.pivot = new Vector2(1f, 0.5f);
-            Panel.anchoredPosition = new Vector2(-(compact ? CompactMargin : NormalMargin), 0f);
-            Panel.sizeDelta = new Vector2(compact ? CompactCardW : NormalCardW,
-                compact ? CompactHeight : NormalHeight);
-
-            if (NormalRoot != null) NormalRoot.gameObject.SetActive(!compact);
-            if (CompactRoot != null) CompactRoot.gameObject.SetActive(compact);
+            if (HintBtn == null || Board == null) return;
+            var rt = (RectTransform)HintBtn.transform;
+            float canvasH = ((RectTransform)transform).rect.height;
+            rt.anchorMin = rt.anchorMax = new Vector2(0.5f, 0f);
+            rt.pivot = new Vector2(0.5f, 0f);
+            // Slot Hint 128 px tetap mempertahankan papan di posisi spek; tombol
+            // yang lebih kecil (108) digeser ke atas agar jarak papan tetap 44.
+            float hintTopCanvas = Board.HintCenterY + 64f;
+            rt.anchoredPosition = new Vector2(0f, hintTopCanvas + canvasH * 0.5f - rt.rect.height);
         }
-
-        void UpdateLevelLabels(LevelData level)
-        {
-            string sub = level.IsTutorial ? "Tutorial" : $"{level.Cols} x {level.Rows}";
-            if (LevelTitle != null) LevelTitle.text = $"Level {_levelId}";
-            if (LevelSub != null) LevelSub.text = sub;
-            if (LevelLabelC != null) LevelLabelC.text = $"Lv {_levelId}";
-        }
-
-        void ShowTutorial(LevelData level)
-        {
-            if (TutorialPill == null) return;
-            bool on = level.IsTutorial;
-            TutorialPill.gameObject.SetActive(on);
-            if (!on || TutorialText == null) return;
-
-            TutorialText.text = TutorialCopy(level.Id);
-            TutorialText.ForceMeshUpdate();
-            float maxW = (BoardSlot != null ? BoardSlot.rect.width : 1488f) - 96f;
-            float w = Mathf.Min(TutorialText.preferredWidth + 56f, maxW);
-            TutorialPill.sizeDelta = new Vector2(Mathf.Max(120f, w), 96f);
-        }
-
-        static string TutorialCopy(int id) => id switch
-        {
-            1 => "Drag on the grid to cover the numbers",
-            2 => "A new rectangle replaces the old one",
-            _ => "Tap a rectangle to remove it",
-        };
 
         public void ToggleMute()
         {
             SaveStore.SetSound(!SaveStore.SoundOn);
-            RefreshSoundIcons();
+            RefreshMuteIcons();
+            AudioService.RefreshMusicVolume();
             AudioService.Play("tap");
         }
 
-        void RefreshSoundIcons()
+        void RefreshMuteIcons()
         {
-            SetSoundIcons(MuteBtn);
-            SetSoundIcons(MuteBtnC);
-        }
-
-        static void SetSoundIcons(Button b)
-        {
-            if (b == null) return;
-            var on = b.transform.Find("IconOn");
-            var off = b.transform.Find("IconOff");
-            bool sound = SaveStore.SoundOn;
-            if (on != null) on.gameObject.SetActive(sound);
-            if (off != null) off.gameObject.SetActive(!sound);
+            bool on = SaveStore.SoundOn;
+            if (_muteOn != null) _muteOn.gameObject.SetActive(on);
+            if (_muteOff != null) _muteOff.gameObject.SetActive(!on);
         }
 
         void OnRectPlaced(int ci, RectI r)
@@ -398,7 +278,7 @@ namespace GridCut.Game
 
         void OnHintUsed(int ci)
         {
-            UpdateHintLabels();
+            UpdateHintLabel();
             SavePlay();
         }
 
@@ -415,20 +295,23 @@ namespace GridCut.Game
             SaveStore.SavePlayState(_levelId, _session.HintCount, _session.Placed);
         }
 
-        void UpdateHintLabels()
+        void UpdateHintLabel()
         {
             if (_session == null) return;
             int left = _session.HintsLeft;
-            if (HintBtn != null) HintBtn.interactable = left > 0;
-            if (HintBtnC != null) HintBtnC.interactable = left > 0;
+            bool active = left > 0 && !_session.IsSolved;
+            if (HintBtn != null) HintBtn.interactable = active;
             if (_badgeCount != null) _badgeCount.text = left.ToString();
-            if (_badgeCountC != null) _badgeCountC.text = left.ToString();
+            var lbl = HintBtn != null ? HintBtn.transform.Find("Label") : null;
+            var t = lbl != null ? lbl.GetComponent<TMP_Text>() : null;
+            if (t != null) t.text = "Hint";
         }
 
         void OnSolved(bool solved)
         {
             if (!solved) return;
             _timerRun = false;
+            UpdateHintLabel();   // tombol Hint nonaktif saat level selesai
             AudioService.Play("win");
             Invoke(nameof(OpenWinOverlay), 0.5f);
         }

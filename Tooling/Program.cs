@@ -83,9 +83,9 @@ namespace GridCut.Tooling
                 (5, 5),
                 (6, 5),
                 (8, 6),
-                (10, 7),
-                (12, 8),
-                (14, 8),
+                (10, 6),
+                (12, 6),
+                (14, 6),
             };
 
             // even spread: soak focuses on proof of uniqueness at each size, berimbang

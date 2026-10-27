@@ -14,9 +14,9 @@ namespace GridCut.Core
             if (level <= 12) return new GridSize(5, 5);     // spec bag.4: mulai 5x5
             if (level <= 30) return new GridSize(6, 5);
             if (level <= 55) return new GridSize(8, 6);
-            if (level <= 85) return new GridSize(10, 7);
-            if (level <= 120) return new GridSize(12, 8);
-            return new GridSize(14, 8);
+            if (level <= 85) return new GridSize(10, 6);
+            if (level <= 120) return new GridSize(12, 6);
+            return new GridSize(14, 6);
         }
 
         public static bool IsTutorial(int level) => level >= 1 && level <= 3;

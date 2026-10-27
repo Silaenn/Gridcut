@@ -10,67 +10,40 @@ using TouchPhase = UnityEngine.InputSystem.TouchPhase;
 namespace GridCut.Game
 {
     /// <summary>
-    /// Papan puzzle (spec bagian 7). Sel 140 / jarak 8 / padding 28 pada 1920×1080,
-    /// papan 788×788 berpusat di (A/2, H/2) dengan A = lebar kanvas − 432.
-    /// Mode ringkas otomatis bila sel normal &lt; 96: A = lebar − 252, M = 32,
-    /// padding 20, jarak 6, inset keping 4.
-    /// Urutan gambar: sel → keping → preview → angka clue → cincin hint → input.
+    /// Papan puzzle layout vertikal (spec bagian 7 revisi): grid selebar mungkin,
+    /// 5×5 sel 132 / jarak 8 / padding 28 → papan 748, pusat horizontal, atas y=132.
+    /// Papan + Hint ditumpuk jarak 44 lalu dipusatkan di zona y=132..1052.
+    /// Area papan 1536×748; sel &lt; 110 memakai jarak 6, padding 24, inset 4.
     /// </summary>
     public class BoardView : MonoBehaviour,
         IPointerDownHandler, IDragHandler, IEndDragHandler, IPointerUpHandler
     {
         public PuzzleSession Session { get; private set; }
-        public float Cell { get; private set; }              // ukuran sel (bukan pitch)
+        public float Cell { get; private set; }
         public int Cols { get; private set; }
         public int Rows { get; private set; }
-        public bool IsCompact { get; private set; }
         public float BoardWidth { get; private set; }
         public float BoardHeight { get; private set; }
+        public float BoardCenterY { get; private set; }
+        public float HintCenterY { get; private set; }
 
         public event System.Action DragStarted;
         public event System.Action DragCellChanged;
 
-        // ---- spek (unit kanvas 1920×1080) ----
         const float MaxCell = 140f;
-        const float CompactBelow = 96f;
+        const float AreaW = 1536f;
+        const float AreaH = 748f;
         const float BoardRadius = 48f;
         const float InputMargin = 24f;
+        const float HintHeight = 128f;
+        const float HintGap = 44f;
+        const float ZoneTopScreen = 132f;
+        const float ZoneBottomScreen = 1052f;
 
-        const float NormalCard = 432f;   // lebar kartu + margin kanan
-        const float CompactCard = 252f;
-        const float NormalM = 48f;
-        const float CompactM = 32f;
-
-        public static float NormalPad => 28f;
-        public static float CompactPad => 20f;
-        public static float NormalGap => 8f;
-        public static float CompactGap => 6f;
-        public static float NormalInset => 6f;
-        public static float CompactInset => 4f;
-
-        /// <summary>Sel dari rumus spek. areaW = A (lebar area kiri), areaH = tinggi kanvas.</summary>
-        public static float SpecCell(float areaW, float areaH, int cols, int rows, bool compact)
-        {
-            float m = compact ? CompactM : NormalM;
-            float pad = compact ? CompactPad : NormalPad;
-            float gap = compact ? CompactGap : NormalGap;
-            return Mathf.Clamp(
-                Mathf.Floor(Mathf.Min(
-                    (areaW - 2f * m - 2f * pad - gap * (cols - 1)) / cols,
-                    (areaH - 2f * m - 2f * pad - gap * (rows - 1)) / rows)),
-                24f, MaxCell);
-        }
-
-        /// <summary>True bila rumus normal menghasilkan sel &lt; 96 (mis. 14×8).</summary>
-        public static bool IsCompactFor(float canvasW, float canvasH, int cols, int rows)
-        {
-            float aNormal = canvasW - NormalCard;
-            return SpecCell(aNormal, canvasH, cols, rows, false) < CompactBelow;
-        }
-
-        /// <summary>Sel normal sebelum dikoreksi mode ringkas (dipakai uji panel lama).</summary>
-        public static float EstimateCell(float slotW, float slotH, int cols, int rows) =>
-            SpecCell(slotW, slotH, cols, rows, false);
+        // normal / compact (<110)
+        const float NormalGap = 8f, NormalPad = 28f, NormalInset = 6f;
+        const float SmallGap = 6f, SmallPad = 24f, SmallInset = 4f;
+        const float SmallThreshold = 110f;
 
         RectTransform _rt;
         RectTransform _slot;
@@ -84,16 +57,15 @@ namespace GridCut.Game
         readonly List<Image> _rectFill = new List<Image>(64);
         readonly List<Image> _neutralFill = new List<Image>(64);
         Coroutine _hintCo;
-        bool _forceCompact;
 
         bool _dragging;
         int _dragPointerId = int.MinValue;
         int _dc0, _dr0, _dc1, _dr1;
         bool _movedAny;
 
-        float Gap => IsCompact ? CompactGap : NormalGap;
-        float Pad => IsCompact ? CompactPad : NormalPad;
-        float Inset => IsCompact ? CompactInset : NormalInset;
+        float Gap { get; set; }
+        float Pad { get; set; }
+        float Inset { get; set; }
 
         void Awake() => _rt = (RectTransform)transform;
 
@@ -105,13 +77,6 @@ namespace GridCut.Game
             Rebuild();
         }
 
-        public void SetCompact(bool compact) => _forceCompact = compact;
-
-        public void RebuildIfReady()
-        {
-            if (Session != null && _slot != null) Rebuild();
-        }
-
         public void Rebuild()
         {
             if (_slot == null) _slot = transform.parent as RectTransform;
@@ -119,13 +84,7 @@ namespace GridCut.Game
             StopAllCoroutines();
             _hintCo = null;
 
-            IsCompact = _forceCompact;
-            Cell = SpecCell(_slot.rect.width, _slot.rect.height, Cols, Rows, IsCompact);
-            BoardWidth = Cols * Cell + (Cols - 1) * Gap + 2f * Pad;
-            BoardHeight = Rows * Cell + (Rows - 1) * Gap + 2f * Pad;
-            _rt.anchorMin = _rt.anchorMax = _rt.pivot = new Vector2(0.5f, 0.5f);
-            _rt.sizeDelta = new Vector2(BoardWidth, BoardHeight);
-            _rt.anchoredPosition = Vector2.zero;
+            ComputeLayout();
 
             SetupBg();
             SetupCells();
@@ -140,6 +99,40 @@ namespace GridCut.Game
             BuildClues();
             BuildHintRing();
             ShowPlaced();
+        }
+
+        void ComputeLayout()
+        {
+            float h = _slot != null ? _slot.rect.height : 1080f;
+            if (h <= 1f) h = 1080f;
+
+            float cw = Mathf.Min(AreaW, _slot != null ? _slot.rect.width : AreaW);
+            float cell = Mathf.Floor(Mathf.Min(
+                (cw - 2f * NormalPad - NormalGap * (Cols - 1)) / Cols,
+                (AreaH - 2f * NormalPad - NormalGap * (Rows - 1)) / Rows));
+            cell = Mathf.Clamp(cell, 24f, MaxCell);
+
+            if (cell < SmallThreshold)
+            {
+                Gap = SmallGap; Pad = SmallPad; Inset = SmallInset;
+            }
+            else
+            {
+                Gap = NormalGap; Pad = NormalPad; Inset = NormalInset;
+            }
+            Cell = cell;
+            BoardWidth = Cols * Cell + (Cols - 1) * Gap + 2f * Pad;
+            BoardHeight = Rows * Cell + (Rows - 1) * Gap + 2f * Pad;
+
+            float zoneTop = h * 0.5f - ZoneTopScreen;
+            float zoneBottom = h * 0.5f - ZoneBottomScreen;
+            float zoneCenter = (zoneTop + zoneBottom) * 0.5f;
+            BoardCenterY = zoneCenter + (HintGap + HintHeight) * 0.5f;
+            HintCenterY = zoneCenter - (BoardHeight + HintGap + HintHeight) * 0.5f + HintHeight * 0.5f;
+
+            _rt.anchorMin = _rt.anchorMax = _rt.pivot = new Vector2(0.5f, 0.5f);
+            _rt.sizeDelta = new Vector2(BoardWidth, BoardHeight);
+            _rt.anchoredPosition = new Vector2(0f, BoardCenterY);
         }
 
         RectTransform Ensure(string childName, int index)
