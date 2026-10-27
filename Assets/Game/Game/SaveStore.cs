@@ -21,6 +21,7 @@ namespace GridCut.Game
         public static int ThemesSeen { get; private set; } = 0;   // bitmask tema yang sudah dilihat
         public static float MusicVolume { get; private set; } = 0.7f;
         public static float SfxVolume { get; private set; } = 0.85f;
+        public static bool TutorialDone { get; private set; } = false;
 
         static readonly Dictionary<int, int> _bestStars = new Dictionary<int, int>();
 
@@ -33,6 +34,7 @@ namespace GridCut.Game
             ThemesSeen = PlayerPrefs.GetInt("gc.themesSeen", 0);
             MusicVolume = Mathf.Clamp01(PlayerPrefs.GetFloat("gc.music", 0.7f));
             SfxVolume = Mathf.Clamp01(PlayerPrefs.GetFloat("gc.sfx", 0.85f));
+            TutorialDone = PlayerPrefs.GetInt("gc.tutorialDone", 0) == 1;
             _bestStars.Clear();
             string packed = PlayerPrefs.GetString("gc.stars", "");
             if (packed.Length == 0) return;
@@ -156,6 +158,13 @@ namespace GridCut.Game
             PlayerPrefs.Save();
         }
 
+        public static void SetTutorialDone(bool done)
+        {
+            TutorialDone = done;
+            PlayerPrefs.SetInt("gc.tutorialDone", done ? 1 : 0);
+            PlayerPrefs.Save();
+        }
+
         /// <summary>Spec bagian 10 (opsional): titik di tombol Themes bila ada tema
         /// baru yang terbuka tetapi belum pernah dilihat di popup.</summary>
         public static bool HasUnseenTheme()
@@ -190,9 +199,11 @@ namespace GridCut.Game
             UnlockedLevel = 1;
             _bestStars.Clear();
             ThemesSeen = 0;
+            TutorialDone = false;
             PlayerPrefs.DeleteKey("gc.unlocked");
             PlayerPrefs.DeleteKey("gc.stars");
             PlayerPrefs.DeleteKey("gc.themesSeen");
+            PlayerPrefs.DeleteKey("gc.tutorialDone");
             PlayerPrefs.Save();
             ClearPlayState();   // state level yang sedang berjalan ikut dihapus
         }

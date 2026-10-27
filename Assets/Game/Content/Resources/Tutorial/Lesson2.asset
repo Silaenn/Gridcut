@@ -1,0 +1,42 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 44b0a53a2fbad5661bc0685ea5cb47d9, type: 3}
+  m_Name: Lesson2
+  m_EditorClassIdentifier: GridCut.Game::GridCut.Game.TutorialLesson
+  Index: 2
+  Cols: 3
+  Rows: 2
+  ClueCols: 01000000
+  ClueRows: 01000000
+  ClueValues: 06000000
+  ClueColors: 01000000
+  SolX: 00000000
+  SolY: 00000000
+  SolW: 03000000
+  SolH: 02000000
+  InitX: 
+  InitY: 
+  InitW: 
+  InitH: 
+  Action: 0
+  Instruction: Rectangles can be wide and tall. Drag from corner to corner.
+  Success: Great! 6 squares for the number 6.
+  AfterRemoval: 
+  HasDemo: 1
+  DemoTap: 0
+  DemoStartCol: 0
+  DemoStartRow: 0
+  DemoEndCol: 2
+  DemoEndRow: 1
+  DemoDelay: 4
+  HintEnabled: 0
+  HintDelay: 8

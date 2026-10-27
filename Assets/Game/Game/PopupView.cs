@@ -22,6 +22,7 @@ namespace GridCut.Game
         public CanvasGroup PanelGroup;
         [Range(0f, 1f)] public float BackdropAlpha = 0.55f;
         public bool CloseOnBackdrop = true;
+        public bool CloseOnEscape = true;
 
         const float OpenBackdropDur = 0.15f;
         const float OpenPanelDur = 0.22f;
@@ -151,7 +152,9 @@ namespace GridCut.Game
         public static bool CloseTop()
         {
             if (Active.Count == 0) return false;
-            Active[Active.Count - 1].Hide();
+            var top = Active[Active.Count - 1];
+            if (!top.CloseOnEscape) return true;   // popup wajib (mis. "You're ready!")
+            top.Hide();
             return true;
         }
 

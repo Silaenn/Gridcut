@@ -12,6 +12,7 @@ namespace GridCut.Game
         public static AudioService Instance { get; private set; }
 
         AudioClip _place, _invalid, _win, _tap, _unlock, _drag, _musicClip;
+        AudioClip _step;   // nada naik saat pelajaran tutorial selesai
         AudioSource _src, _music;
         static float _sfxPreview = -1f;
 
@@ -39,6 +40,7 @@ namespace GridCut.Game
             _unlock = Tone(new (float f, float s, float a)[] { (523f, 0.1f, 0.5f), (659f, 0.1f, 0.5f), (784f, 0.14f, 0.5f) });
             _win = Tone(new (float f, float s, float a)[] { (523f, 0.12f, 0.55f), (659f, 0.12f, 0.55f), (784f, 0.12f, 0.55f), (1047f, 0.24f, 0.55f) });
             _drag = Tone(new (float f, float s, float a)[] { (880f, 0.03f, 0.3f) });
+            _step = Tone(new (float f, float s, float a)[] { (659f, 0.08f, 0.45f), (880f, 0.12f, 0.5f) });
             _src = gameObject.AddComponent<AudioSource>();
             _src.playOnAwake = false;
         }
@@ -102,6 +104,7 @@ namespace GridCut.Game
                 "win" => Instance._win,
                 "unlock" => Instance._unlock,
                 "drag" => Instance._drag,
+                "step" => Instance._step,
                 _ => Instance._tap,
             };
             float volume = _sfxPreview >= 0f ? _sfxPreview : SaveStore.SfxVolume;

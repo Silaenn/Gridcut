@@ -401,7 +401,7 @@ namespace GridCut.Game
             var p = PopupOf(SettingsPopup);
             if (p != null) p.HideImmediate();
             AudioService.Play("tap");
-            AppRoot.Instance.StartLevel(1);
+            AppRoot.Instance.StartTutorial();
         }
 
         /// <summary>Pengaturan → Reset Progress: Pengaturan tetap terbuka di belakang,
@@ -739,7 +739,7 @@ namespace GridCut.Game
             return 1f + c3 * t * t * t + c1 * t * t;
         }
 
-        public void StartContinue() => AppRoot.Instance.StartLevel(SaveStore.UnlockedLevel);
+        public void StartContinue() => AppRoot.Instance.StartContinue();
 
         public void OpenLevelSelect() => AppRoot.Instance.OpenLevelSelect();
 

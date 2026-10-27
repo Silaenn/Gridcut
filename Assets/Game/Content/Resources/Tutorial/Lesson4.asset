@@ -1,0 +1,42 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 44b0a53a2fbad5661bc0685ea5cb47d9, type: 3}
+  m_Name: Lesson4
+  m_EditorClassIdentifier: GridCut.Game::GridCut.Game.TutorialLesson
+  Index: 4
+  Cols: 3
+  Rows: 3
+  ClueCols: 000000000200000000000000
+  ClueRows: 000000000100000002000000
+  ClueValues: 020000000300000004000000
+  ClueColors: 000000000200000004000000
+  SolX: 000000000200000000000000
+  SolY: 000000000000000001000000
+  SolW: 020000000100000002000000
+  SolH: 010000000300000002000000
+  InitX: 00000000
+  InitY: 01000000
+  InitW: 02000000
+  InitH: 01000000
+  Action: 1
+  Instruction: Tap a rectangle to remove it. Then finish the puzzle.
+  Success: You fixed it!
+  AfterRemoval: Now finish the puzzle.
+  HasDemo: 1
+  DemoTap: 1
+  DemoStartCol: 0
+  DemoStartRow: 1
+  DemoEndCol: 0
+  DemoEndRow: 1
+  DemoDelay: 4
+  HintEnabled: 0
+  HintDelay: 8

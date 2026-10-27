@@ -26,6 +26,13 @@ namespace GridCut.Game
         public float BoardHeight { get; private set; }
         public float BoardCenterY { get; private set; }
         public float HintCenterY { get; private set; }
+        public bool TutorialLayout { get; private set; }
+
+        // Gerbang input tutorial (null = normal gameplay)
+        public System.Func<RectI, bool> PlaceGate;
+        public System.Func<int, int, bool> TapGate;
+        public event System.Action Rejected;
+        public RectTransform DemoLayer { get; private set; }
 
         public event System.Action DragStarted;
         public event System.Action DragCellChanged;
@@ -51,6 +58,8 @@ namespace GridCut.Game
         RectTransform _clues;
         RectTransform _hint;
         RectTransform _previewRt;
+        CanvasGroup _previewGroup;
+        Coroutine _rejectCo;
         Image _hintRing;
         Image _pFill, _pRing;
         TMP_Text _pNum;
@@ -77,6 +86,8 @@ namespace GridCut.Game
             Rebuild();
         }
 
+        public void SetTutorialLayout(bool on) => TutorialLayout = on;
+
         public void Rebuild()
         {
             if (_slot == null) _slot = transform.parent as RectTransform;
@@ -93,6 +104,7 @@ namespace GridCut.Game
             _clues = Ensure("Clues", 3);
             _hint = Ensure("Hint", 4);
             EnsureInput(5);
+            EnsureDemo(6);
 
             BuildPieces();
             BuildPreview();
@@ -124,14 +136,23 @@ namespace GridCut.Game
             BoardWidth = Cols * Cell + (Cols - 1) * Gap + 2f * Pad;
             BoardHeight = Rows * Cell + (Rows - 1) * Gap + 2f * Pad;
 
+            _rt.anchorMin = _rt.anchorMax = _rt.pivot = new Vector2(0.5f, 0.5f);
+            _rt.sizeDelta = new Vector2(BoardWidth, BoardHeight);
+
+            if (TutorialLayout)
+            {
+                // pusat papan tutorial di y=528 layar (sedikit di atas tengah)
+                BoardCenterY = h * 0.5f - 528f;
+                HintCenterY = BoardCenterY;
+                _rt.anchoredPosition = new Vector2(0f, BoardCenterY);
+                return;
+            }
+
             float zoneTop = h * 0.5f - ZoneTopScreen;
             float zoneBottom = h * 0.5f - ZoneBottomScreen;
             float zoneCenter = (zoneTop + zoneBottom) * 0.5f;
             BoardCenterY = zoneCenter + (HintGap + HintHeight) * 0.5f;
             HintCenterY = zoneCenter - (BoardHeight + HintGap + HintHeight) * 0.5f + HintHeight * 0.5f;
-
-            _rt.anchorMin = _rt.anchorMax = _rt.pivot = new Vector2(0.5f, 0.5f);
-            _rt.sizeDelta = new Vector2(BoardWidth, BoardHeight);
             _rt.anchoredPosition = new Vector2(0f, BoardCenterY);
         }
 
@@ -245,6 +266,22 @@ namespace GridCut.Game
             proxy.Owner = this;
         }
 
+        void EnsureDemo(int index)
+        {
+            var t = _rt.Find("Demo") as RectTransform;
+            if (t == null)
+            {
+                var go = new GameObject("Demo", typeof(RectTransform));
+                t = (RectTransform)go.transform;
+                t.SetParent(_rt, false);
+            }
+            t.anchorMin = Vector2.zero; t.anchorMax = Vector2.one;
+            t.offsetMin = Vector2.zero; t.offsetMax = Vector2.zero;
+            t.SetSiblingIndex(Mathf.Min(index, _rt.childCount - 1));
+            ClearChildren(t);
+            DemoLayer = t;
+        }
+
         // ------------------------------ keping ---------------------------------
 
         void BuildPieces()
@@ -300,6 +337,7 @@ namespace GridCut.Game
             var go = new GameObject("preview", typeof(RectTransform));
             go.transform.SetParent(_pieces, false);
             _previewRt = (RectTransform)go.transform;
+            _previewGroup = go.AddComponent<CanvasGroup>();
             float radius = Mathf.Clamp(0.23f * Cell, 16f, 32f);
 
             _pFill = UiFactory.Image(go.transform, "Fill", Color.clear);
@@ -448,9 +486,20 @@ namespace GridCut.Game
             return img;
         }
 
+        void SetPreviewVisible(bool on)
+        {
+            if (_previewRt != null) _previewRt.gameObject.SetActive(on);
+            if (on && _previewGroup != null) _previewGroup.alpha = 1f;
+        }
+
         public void ClearPreview()
         {
-            if (_previewRt != null) _previewRt.gameObject.SetActive(false);
+            if (_rejectCo != null) { StopCoroutine(_rejectCo); _rejectCo = null; }
+            if (_previewRt != null)
+            {
+                _previewRt.gameObject.SetActive(false);
+                if (_previewGroup != null) _previewGroup.alpha = 1f;
+            }
             _dragging = false;
         }
 
@@ -495,17 +544,37 @@ namespace GridCut.Game
         {
             if (!_dragging || e.pointerId != _dragPointerId) return;
             _dragging = false;
-            if (_previewRt != null) _previewRt.gameObject.SetActive(false);
-            if (!TryCell(e.position, out int c, out int r)
-                && !TryCellClamped(e.position, out c, out r)) return;
+            if (!TryCell(e.position, out int c, out int r))
+            {
+                if (!TryCellClamped(e.position, out c, out r))
+                {
+                    SetPreviewVisible(false);
+                    return;
+                }
+            }
+
             if (c == _dc0 && r == _dr0 && !_movedAny)
             {
-                if (Session.RemoveRectAt(c, r)) return;
+                if (TapGate != null && !TapGate(c, r))
+                {
+                    RejectPreview();
+                    return;
+                }
+                if (Session.RemoveRectAt(c, r)) { SetPreviewVisible(false); return; }
                 var one = PuzzleSession.Snap(_dc0, _dr0, c, r, Cols, Rows);
-                if (Session.RectValid(one)) Session.Place(one);
+                if (Session.RectValid(one)) { SetPreviewVisible(false); Session.Place(one); }
+                else SetPreviewVisible(false);
                 return;
             }
-            Session.Place(PuzzleSession.Snap(_dc0, _dr0, c, r, Cols, Rows));
+
+            var rect = PuzzleSession.Snap(_dc0, _dr0, c, r, Cols, Rows);
+            if (PlaceGate != null && !PlaceGate(rect))
+            {
+                RejectPreview();
+                return;
+            }
+            SetPreviewVisible(false);
+            Session.Place(rect);
         }
 
         void Update()
@@ -526,7 +595,12 @@ namespace GridCut.Game
         void CancelDrag()
         {
             _dragging = false;
-            if (_previewRt != null) _previewRt.gameObject.SetActive(false);
+            if (_rejectCo != null) { StopCoroutine(_rejectCo); _rejectCo = null; }
+            if (_previewRt != null)
+            {
+                _previewRt.gameObject.SetActive(false);
+                if (_previewGroup != null) _previewGroup.alpha = 1f;
+            }
         }
 
         void OnApplicationFocus(bool hasFocus) { if (!hasFocus) CancelDrag(); }
@@ -561,9 +635,44 @@ namespace GridCut.Game
             return true;
         }
 
+        public Vector2 CellCenterLocal(int col, int row) => CellCenter(col, row);
+        public Vector2 RectCenterLocal(in RectI rect) => PieceCenter(rect);
+        public Vector2 RectSizeLocal(in RectI rect) => new Vector2(PieceSpan(rect.W), PieceSpan(rect.H));
+
+        void RejectPreview()
+        {
+            Rejected?.Invoke();
+            if (_rejectCo != null) StopCoroutine(_rejectCo);
+            _rejectCo = StartCoroutine(RejectCo());
+        }
+
+        System.Collections.IEnumerator RejectCo()
+        {
+            if (_previewRt == null || !_previewRt.gameObject.activeSelf) yield break;
+            var basePos = _previewRt.anchoredPosition;
+            const float dur = 0.28f;
+            for (float t = 0f; t < dur;)
+            {
+                t += Time.unscaledDeltaTime;
+                float k = Mathf.Clamp01(t / dur);
+                var p = basePos;
+                if (!SaveStore.ReduceMotion)
+                    p.x += Mathf.Sin(k * Mathf.PI * 6f) * 8f * (1f - k);
+                _previewRt.anchoredPosition = p;
+                if (_previewGroup != null) _previewGroup.alpha = 1f - k;
+                yield return null;
+            }
+            _previewRt.anchoredPosition = basePos;
+            _previewRt.gameObject.SetActive(false);
+            if (_previewGroup != null) _previewGroup.alpha = 1f;
+            _rejectCo = null;
+        }
+
         void UpdatePreview()
         {
             if (Session == null || _previewRt == null) return;
+            if (_rejectCo != null) { StopCoroutine(_rejectCo); _rejectCo = null; }
+            if (_previewGroup != null) _previewGroup.alpha = 1f;
             var rect = PuzzleSession.Snap(_dc0, _dr0, _dc1, _dr1, Cols, Rows);
             var accent = ThemeApplier.ColorOf(ThemeApplier.Role.Accent);
             var fill = accent; fill.a = 0.3f;

@@ -23,6 +23,7 @@ namespace GridCut.Game
         public HomeScreen Home;
         public LevelSelectScreen LevelSelect;
         public GameplayScreen Gameplay;
+        public TutorialScreen Tutorial;
         public Image Background;
 
         [Header("Shared sprites (PNG assets, wired in scene)")]
@@ -35,7 +36,7 @@ namespace GridCut.Game
         public Sprite Rounded;       // Assets/Game/UI/Rounded.png (putih, radius 56, border 56)
         public Sprite RoundedRing;   // Assets/Game/UI/RoundedRing.png (cincin 10px, radius luar 56, border 56)
 
-        enum ScreenId { Home = 0, LevelSelect = 1, Gameplay = 2 }
+        enum ScreenId { Home = 0, LevelSelect = 1, Gameplay = 2, Tutorial = 3 }
         readonly List<ScreenId> _history = new();
         ScreenId _current = ScreenId.Home;
         Coroutine _fade;
@@ -103,6 +104,11 @@ namespace GridCut.Game
                 Gameplay = GetComponentInChildren<GameplayScreen>(true);
                 if (Gameplay != null) Debug.LogWarning("[AppRoot] Gameplay ter-wire otomatis dari hierarki");
             }
+            if (Tutorial == null)
+            {
+                Tutorial = GetComponentInChildren<TutorialScreen>(true);
+                if (Tutorial != null) Debug.LogWarning("[AppRoot] Tutorial ter-wire otomatis dari hierarki");
+            }
             if (Background == null)
             {
                 var bg = GetComponentInChildren<Image>(true);
@@ -112,7 +118,7 @@ namespace GridCut.Game
                     Debug.LogWarning("[AppRoot] Background ter-wire otomatis dari hierarki");
                 }
             }
-            Debug.Log($"[AppRoot] refs \u2192 Home={Home != null} LevelSelect={LevelSelect != null} Gameplay={Gameplay != null} Background={Background != null}");
+            Debug.Log($"[AppRoot] refs \u2192 Home={Home != null} LevelSelect={LevelSelect != null} Gameplay={Gameplay != null} Tutorial={Tutorial != null} Background={Background != null}");
         }
 
         void Update()
@@ -142,7 +148,8 @@ namespace GridCut.Game
             _current = id;
             var go = id == ScreenId.Home ? Home != null ? Home.gameObject : null
                    : id == ScreenId.LevelSelect ? LevelSelect != null ? LevelSelect.gameObject : null
-                   : Gameplay != null ? Gameplay.gameObject : null;
+                   : id == ScreenId.Gameplay ? Gameplay != null ? Gameplay.gameObject : null
+                   : Tutorial != null ? Tutorial.gameObject : null;
             if (go == null)
             {
                 Debug.LogError($"[AppRoot] Layar {id} tidak tersedia — referensi hilang, cek Inspector AppRoot di UICanvas");
@@ -164,7 +171,10 @@ namespace GridCut.Game
 
         public void StartLevel(int levelId)
         {
-            Switch(ScreenId.Gameplay, push: true);
+            // dari tutorial (Skip / Play penutup) jangan menumpuk tutorial di riwayat:
+            // Back dari Level 1 harus pulang ke menu, bukan kembali ke tutorial selesai
+            bool fromTutorial = _current == ScreenId.Tutorial;
+            Switch(ScreenId.Gameplay, push: !fromTutorial);
             Gameplay.Show(levelId);
         }
 
@@ -191,6 +201,7 @@ namespace GridCut.Game
             SetScreenInteractive(Home, !block);
             SetScreenInteractive(LevelSelect, !block);
             SetScreenInteractive(Gameplay, !block);
+            SetScreenInteractive(Tutorial, !block);
             if (block && Gameplay != null && Gameplay.Board != null)
                 Gameplay.Board.ClearPreview();   // drag di layar bawah dibatalkan
         }
@@ -204,8 +215,18 @@ namespace GridCut.Game
             cg.blocksRaycasts = on;
         }
 
-        /// <summary>Continue button: jumps to the highest unlocked level.</summary>
-        public void StartContinue() => StartLevel(SaveStore.UnlockedLevel);
+        /// <summary>Continue button: tutorial first (once per save), lalu level tertinggi.</summary>
+        public void StartContinue()
+        {
+            if (!SaveStore.TutorialDone) { StartTutorial(); return; }
+            StartLevel(SaveStore.UnlockedLevel);
+        }
+
+        public void StartTutorial()
+        {
+            Switch(ScreenId.Tutorial, push: true);
+            if (Tutorial != null) Tutorial.Begin();
+        }
 
         /// <summary>Back one screen (Escape/Back button); lands on Home with no history.</summary>
         public void NavBack()
@@ -226,6 +247,7 @@ namespace GridCut.Game
             Home.gameObject.SetActive(go == Home.gameObject);
             LevelSelect.gameObject.SetActive(go == LevelSelect.gameObject);
             Gameplay.gameObject.SetActive(go == Gameplay.gameObject);
+            if (Tutorial != null) Tutorial.gameObject.SetActive(go == Tutorial.gameObject);
             if (_fade != null) StopCoroutine(_fade);
             _fade = StartCoroutine(FadeIn(go));
         }
