@@ -62,7 +62,6 @@ namespace GridCut.Game
         Coroutine _rejectCo;
         Image _hintRing;
         Image _pFill, _pRing;
-        TMP_Text _pNum;
         readonly List<Image> _rectFill = new List<Image>(64);
         readonly List<Image> _neutralFill = new List<Image>(64);
         Coroutine _hintCo;
@@ -360,13 +359,6 @@ namespace GridCut.Game
             rr.anchorMin = Vector2.zero; rr.anchorMax = Vector2.one;
             rr.offsetMin = Vector2.zero; rr.offsetMax = Vector2.zero;
 
-            int fs = ClueFontSize;
-            _pNum = UiFactory.Text(go.transform, "Num", "0", fs, null, TextAlignmentOptions.Center);
-            var bold = AppRoot.Instance != null ? AppRoot.Instance.FontBold : null;
-            if (bold != null) _pNum.font = bold;
-            var nrt = _pNum.rectTransform;
-            nrt.anchorMin = Vector2.zero; nrt.anchorMax = Vector2.one;
-            nrt.offsetMin = Vector2.zero; nrt.offsetMax = Vector2.zero;
             go.SetActive(false);
         }
 
@@ -421,6 +413,35 @@ namespace GridCut.Game
         float PieceSpan(int span) => span * Cell + (span - 1) * Gap - 2f * Inset;
 
         // ------------------------- keping terpasang -----------------------------
+
+        /// <summary>Perayaan papan setelah level selesai (spec bagian 14): keping
+        /// berdenyut berurutan dan kotak warna jatuh selama sekitar 1,2 detik.</summary>
+        public void Celebrate()
+        {
+            if (SaveStore.ReduceMotion) return;
+            StartCoroutine(CelebrateCo());
+        }
+
+        System.Collections.IEnumerator CelebrateCo()
+        {
+            var pieces = new List<Image>();
+            for (int i = 0; i < _rectFill.Count; i++)
+                if (_rectFill[i] != null && _rectFill[i].gameObject.activeSelf) pieces.Add(_rectFill[i]);
+            for (int i = 0; i < _neutralFill.Count; i++)
+                if (_neutralFill[i] != null && _neutralFill[i].gameObject.activeSelf) pieces.Add(_neutralFill[i]);
+
+            const float dur = 0.6f;
+            for (float t = 0f; t < dur; t += Time.unscaledDeltaTime)
+            {
+                float k = Mathf.Clamp01(t / dur);
+                float s = 1f + 0.06f * Mathf.Sin(k * Mathf.PI);
+                for (int i = 0; i < pieces.Count; i++)
+                    pieces[i].rectTransform.localScale = new Vector3(s, s, 1f);
+                yield return null;
+            }
+            for (int i = 0; i < pieces.Count; i++)
+                pieces[i].rectTransform.localScale = Vector3.one;
+        }
 
         public void ShowPlaced()
         {
@@ -678,9 +699,6 @@ namespace GridCut.Game
             var fill = accent; fill.a = 0.3f;
             _pFill.color = fill;
             _pRing.color = accent;
-            _pNum.color = ThemeApplier.ColorOf(ThemeApplier.Role.Text);
-            _pNum.text = (rect.W * rect.H).ToString();
-            _pNum.fontSize = ClueFontSize;
             _previewRt.SetAsLastSibling();
             _previewRt.anchorMin = _previewRt.anchorMax = new Vector2(0.5f, 0.5f);
             _previewRt.sizeDelta = new Vector2(PieceSpan(rect.W), PieceSpan(rect.H));
