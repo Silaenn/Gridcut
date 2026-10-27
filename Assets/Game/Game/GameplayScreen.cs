@@ -697,9 +697,17 @@ namespace GridCut.Game
 
         void EnableWinButtons(bool on)
         {
-            if (WinNextBtn != null) WinNextBtn.interactable = on;
-            if (WinMenuBtn != null) WinMenuBtn.interactable = on;
-            if (WinRepeatBtn != null) WinRepeatBtn.interactable = on;
+            SetWinButton(WinNextBtn, on);
+            SetWinButton(WinMenuBtn, on);
+            SetWinButton(WinRepeatBtn, on);
+        }
+
+        static void SetWinButton(Button b, bool on)
+        {
+            if (b == null) return;
+            b.interactable = on;
+            var cg = b.GetComponent<CanvasGroup>();
+            if (cg != null) cg.blocksRaycasts = on;   // tombol tidak bisa diklik selama animasi
         }
 
         static void SetGroup(CanvasGroup g, float a)
@@ -916,7 +924,17 @@ namespace GridCut.Game
             AppRoot.Instance.OpenLevelSelect();
         }
 
-        public void DoReset() => _session.Reset();
+        public void DoReset()
+        {
+            if (_session == null) return;
+            Board.CancelHint();
+            Board.ClearPreview();
+            _session.Reset();
+            Board.ShowPlaced();
+            UpdateHintLabel();
+            SavePlay();
+            AudioService.Play("tap");
+        }
 
         public void DoHint()
         {

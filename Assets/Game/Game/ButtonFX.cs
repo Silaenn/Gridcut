@@ -20,7 +20,7 @@ namespace GridCut.Game
         public float ShadowDy = -12f;
 
         const float Durasi = 0.1f;
-        const float HoverNaik = 4f;
+        const float HoverNaik = 8f;
 
         Button _btn;
         RectTransform _rt;

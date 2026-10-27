@@ -145,6 +145,7 @@ namespace GridCut.Game
 
         public void Reset()
         {
+            HintCount = 0;
             if (Placed.Count == 0) return;
             for (int i = Placed.Count - 1; i >= 0; i--)
                 RemovePlacedAt(i);

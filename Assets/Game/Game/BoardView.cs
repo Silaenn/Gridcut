@@ -713,6 +713,13 @@ namespace GridCut.Game
             _hintCo = StartCoroutine(HintPulseCo(clueIndex, apply));
         }
 
+        /// <summary>Batalkan hint yang masih berdenyut (mis. saat Reset).</summary>
+        public void CancelHint()
+        {
+            if (_hintCo != null) { StopCoroutine(_hintCo); _hintCo = null; }
+            if (_hintRing != null) _hintRing.gameObject.SetActive(false);
+        }
+
         System.Collections.IEnumerator HintPulseCo(int clueIndex, System.Action apply)
         {
             var clue = Session.Puzzle.Clues[clueIndex];

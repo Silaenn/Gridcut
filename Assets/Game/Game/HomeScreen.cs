@@ -17,7 +17,7 @@ namespace GridCut.Game
     {
         [Header("Wired in scene")]
         public Button ContinueBtn, SelectBtn, SoundBtn, ResetBtn;   // ResetBtn = tombol Settings (gear)
-        public Image ContinueIcon;         // ikon play 56×56 di dalam ContinueBtn
+        public Image ContinueIcon;         // ikon play 80×80 di dalam ContinueBtn
         public Button ThemeBtn;            // tombol sekunder baris bawah, membuka kartu tema
         public Button[] ThemeSwatches;     // kartu tematik Theme0..4 (spec: 5 kartu horizontal; diadaptasi 332×465)
         public GameObject ConfirmDialog;
@@ -328,7 +328,31 @@ namespace GridCut.Game
                 int level = SaveStore.UnlockedLevel;
                 if (level <= 1) cont.text = "Play";
                 else cont.text = $"Continue \u00b7 Level {level}";
+                cont.ForceMeshUpdate();
             }
+            FitContinueWidth(cont);
+        }
+
+        /// <summary>Lebar tombol Play/Continue mengikuti isi: ikon + teks + padding,
+        /// supaya "Continue · Level 150" tidak terpotong.</summary>
+        void FitContinueWidth(TMP_Text label)
+        {
+            if (ContinueBtn == null) return;
+            var btn = (RectTransform)ContinueBtn.transform;
+            var seat = btn.parent as RectTransform;
+            var icon = btn.Find("Icon") as RectTransform;
+            var hlg = btn.GetComponent<HorizontalLayoutGroup>();
+            float iconW = 80f;
+            if (icon != null)
+            {
+                var le = icon.GetComponent<LayoutElement>();
+                iconW = le != null ? le.preferredWidth : icon.rect.width;
+            }
+            float spacing = hlg != null ? hlg.spacing : 20f;
+            float textW = label != null ? Mathf.Max(0f, label.preferredWidth) : 0f;
+            float width = Mathf.Clamp(iconW + spacing + textW + 112f, 400f, 800f);
+            btn.sizeDelta = new Vector2(width, btn.sizeDelta.y);
+            if (seat != null) seat.sizeDelta = new Vector2(width, seat.sizeDelta.y);
         }
 
         public void ToggleSound()
