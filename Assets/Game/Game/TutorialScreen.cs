@@ -31,6 +31,10 @@ namespace GridCut.Game
         [Header("Sprites")]
         public Sprite CircleSprite, RingSprite, ArrowSprite;
 
+        [Header("Layout (baked in scene)")]
+        [Tooltip("Posisi atas Continue per pelajaran, dari atas layar (index 0 = pelajaran 1).")]
+        public float[] ContinueTops = { 698f, 870f, 870f, 870f, 870f };
+
         public event Action<int> TutorialStepCompleted;
 
         TutorialLesson[] _lessons;
@@ -181,10 +185,9 @@ namespace GridCut.Game
             Board.TapGate = GateTap;
 
             SetInstruction(lesson.Instruction);
-            SetBottomSlot(lesson.HintEnabled);
+            SetBottomSlot();
             UpdateDots();
             UpdateHint();
-            if (ContinueBtn != null) ContinueBtn.gameObject.SetActive(false);
             if (HintBtn != null)
             {
                 HintBtn.gameObject.SetActive(lesson.HintEnabled);
@@ -560,59 +563,38 @@ namespace GridCut.Game
             InstructionText.ForceMeshUpdate();
         }
 
-        void SetBottomSlot(bool hint)
+        void SetBottomSlot()
         {
-            if (Board == null) return;
-            // hitung tepi bawah papan dari transform sebenarnya, bukan asumsi 1080:
-            // papan selalu di y=528 dari atas, jadi pada aspect lain tinggi canvas
-            // berubah dan rumus 540 lama bisa menaruh Continue menimpa papan
-            var rootRt = (RectTransform)transform;
-            var bRt = (RectTransform)Board.transform;
-            Vector3 bottomWorld = bRt.TransformPoint(new Vector3(0f, -bRt.rect.height * 0.5f, 0f));
-            Vector3 bottomLocal = rootRt.InverseTransformPoint(bottomWorld);
-            float boardBottomScreen = rootRt.rect.height * 0.5f - bottomLocal.y;
-            // lesson 5: kotak progres 60 px di bawah Hint; rapatkan slot 20 px supaya
-            // tombol + bayangannya tidak menimpa kotak (spesifikasi 964 bertabrakan
-            // dengan slot Hint pada papan 4x4).
-            float top = boardBottomScreen + (hint ? 24f : 44f);
-            var cRt = ContinueBtn != null ? (RectTransform)ContinueBtn.transform : null;
-            if (cRt != null)
-            {
-                cRt.anchorMin = cRt.anchorMax = new Vector2(0.5f, 1f);
-                cRt.pivot = new Vector2(0.5f, 1f);
-                cRt.anchoredPosition = new Vector2(0f, -top);
-            }
-            var hRt = HintBtn != null ? (RectTransform)HintBtn.transform : null;
-            if (hRt != null)
-            {
-                hRt.anchorMin = hRt.anchorMax = new Vector2(0.5f, 1f);
-                hRt.pivot = new Vector2(0.5f, 1f);
-                hRt.anchoredPosition = new Vector2(0f, -top);
-                if (hint)
-                {
-                    // badge tetap di sudut kanan-atas, tetapi masuk sedikit supaya
-                    // tidak menyentuh tepi bawah papan pada slot yang dirapatkan
-                    var badge = hRt.Find("HintBadge") as RectTransform;
-                    if (badge != null) badge.anchoredPosition = new Vector2(0f, -12f);
-                }
-            }
-            if (DotsRow != null)
-                DotsRow.anchoredPosition = new Vector2(0f, -(hint ? 1010f : 964f));
-            ShowContinue(false);
+            if (ContinueBtn == null) return;
+            // posisi per pelajaran dari data scene (ContinueTops), bisa diatur di Inspector
+            int i = ContinueTops != null && ContinueTops.Length > 0
+                ? Mathf.Clamp(_index, 0, ContinueTops.Length - 1) : 0;
+            float top = ContinueTops != null && ContinueTops.Length > 0 ? ContinueTops[i] : 698f;
+            var rt = (RectTransform)ContinueBtn.transform;
+            rt.anchoredPosition = new Vector2(0f, -top);
+            // ButtonFX menyimpan posisi istirahatnya sendiri; tanpa rebase, saat
+            // tombol di-disable ia mengembalikan posisi ke pelajaran sebelumnya
+            var fx = ContinueBtn.GetComponent<ButtonFX>();
+            if (fx != null) fx.RebaseRest();
+            HideContinue(ContinueBtn);
         }
 
         void ShowContinue(bool show)
         {
-            if (ContinueBtn == null) return;
-            var rt = (RectTransform)ContinueBtn.transform;
-            var cg = ContinueBtn.GetComponent<CanvasGroup>();
-            if (!show)
-            {
-                ContinueBtn.gameObject.SetActive(false);
-                if (cg != null) cg.alpha = 0f;
-                return;
-            }
-            ContinueBtn.gameObject.SetActive(true);
+            var btn = ContinueBtn;
+            if (btn == null) return;
+            if (!show) { HideContinue(btn); return; }
+            var rt = (RectTransform)btn.transform;
+            var cg = btn.GetComponent<CanvasGroup>();
+            // baca ulang array saat tombol muncul, supaya perubahan di Inspector
+            // tetap terpakai tanpa menunggu pindah pelajaran
+            int i = ContinueTops != null && ContinueTops.Length > 0
+                ? Mathf.Clamp(_index, 0, ContinueTops.Length - 1) : 0;
+            float top = ContinueTops != null && ContinueTops.Length > 0 ? ContinueTops[i] : 698f;
+            rt.anchoredPosition = new Vector2(0f, -top);
+            var fx = btn.GetComponent<ButtonFX>();
+            if (fx != null) fx.RebaseRest();
+            btn.gameObject.SetActive(true);
             float y = rt.anchoredPosition.y;
             var rest = new Vector2(0f, y);
             if (SaveStore.ReduceMotion)
@@ -626,6 +608,14 @@ namespace GridCut.Game
             if (cg != null) cg.alpha = 0f;
             if (_riseCo != null) StopCoroutine(_riseCo);
             _riseCo = StartCoroutine(Rise(rt, cg, from, rest));
+        }
+
+        static void HideContinue(Button b)
+        {
+            if (b == null) return;
+            b.gameObject.SetActive(false);
+            var cg = b.GetComponent<CanvasGroup>();
+            if (cg != null) cg.alpha = 0f;
         }
 
         IEnumerator Rise(RectTransform rt, CanvasGroup cg, Vector2 from, Vector2 to)
