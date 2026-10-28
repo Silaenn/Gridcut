@@ -16,14 +16,12 @@ namespace GridCut.Core
 
     /// <summary>
     /// Builds the full 150-level set: computes grid size and target score per level,
-    /// walks sequential seeds until a candidate passes uniqueness + deduction + filters
-    /// + score band, assigns palette colors, then emits LevelData objects.
-    /// CalibratedMode: for each grid size a sample of candidate scores is computed first,
-    /// and the target score is clamped to the achievable range (never forced beyond it).
+    /// generates one candidate pool per size band, gates the deduction technique the
+    /// band is allowed to require, orders candidates by the continuous difficulty
+    /// metric, assigns palette colors, then emits LevelData objects.
     /// </summary>
     public static class LevelSetBuilder
     {
-        public const float ScoreTolerance = 0.4f;
         public const int CalibrationSamplesPerSize = 500;
         public const ulong MaxSeedsPerLevel = 60000;
 
@@ -39,7 +37,6 @@ namespace GridCut.Core
             public float[] Raws = System.Array.Empty<float>();
         }
 
-        /// <summary>Sample candidate puzzles for one grid size to learn the achievable score range.</summary>
         /// <summary>Keeps a single obvious block from carrying the whole puzzle.
         /// Roughly one quarter of the board, with a floor of 8 cells.</summary>
         public static PuzzleGenerator.GenRules RulesFor(GridSize size)
@@ -86,38 +83,15 @@ namespace GridCut.Core
         }
 
         /// <summary>
-        /// Map a raw solver score to the spec's 1..10 scale, linear between the size's
-        /// p5 and p95 (anchors from the calibration sample). Raw scores are discrete with
-        /// a large mass at the floor, which maps to exactly 1.0 — gapping bands near the
-        /// floor are handled by the acceptance edge plus the closest-fit fallback.
-        /// </summary>
-        public static float Normalize(float raw, Calibration cal)
-        {
-            if (cal == null || cal.Samples == 0) return raw;
-            float t = (raw - cal.LowAnchor) / (cal.HighAnchor - cal.LowAnchor);
-            if (t < 0f) t = 0f; else if (t > 1f) t = 1f;
-            return 1f + 9f * t;
-        }
-
-        public static float ClampTarget(float target, Calibration cal)
-        {
-            if (cal == null || cal.Samples == 0) return target;
-            // normalized scale: band between the anchors' mapped values 1..10
-            float lo = 1.05f, hi = 9.95f;
-            if (target < lo) return lo;
-            if (target > hi) return hi;
-            return target;
-        }
-
-        /// <summary>
         /// Build every requested level. One shared canonical-hash set prevents cross-band
-        /// duplicates. Candidates are generated ONCE per size band into a pool, then
-        /// matched to each level target nearest-first — levels never re-scan the same
-        /// seed sequence.
+        /// duplicates. Candidates are generated ONCE per size band into a pool, ordered
+        /// by the continuous difficulty metric, then matched to the level targets.
+        /// Each band's easiest..hardest pool is mapped exactly onto that band's target
+        /// span, so difficulty rises inside every board size instead of sitting on the
+        /// rule-1 floor until the next board arrives.
         /// </summary>
         public static List<LevelData> Build(
             int levelFrom, int levelTo,
-            Dictionary<string, Calibration> calibrationByBand,
             HashSet<ulong> seenHashes,
             Dictionary<int, ExportStats> statsOut)
         {
@@ -141,7 +115,7 @@ namespace GridCut.Core
             if (current.Count > 0) bands.Add(current);
 
             foreach (var band in bands)
-                BuildBand(band, bands.IndexOf(band), calibrationByBand, seenHashes, statsOut, levels);
+                BuildBand(band, bands.IndexOf(band), seenHashes, statsOut, levels);
 
             return levels;
         }
@@ -149,24 +123,24 @@ namespace GridCut.Core
         private sealed class Candidate
         {
             public GenAttempt Attempt;
-            public float NormScore;
+            public float Difficulty;
         }
 
         private static void BuildBand(
             List<int> bandLevels,
             int bandIndex,
-            Dictionary<string, Calibration> calibrationByBand,
             HashSet<ulong> seenHashes,
             Dictionary<int, ExportStats> statsOut,
             List<LevelData> levels)
         {
             var size = LevelPlan.SizeForLevel(bandLevels[0]);
-            string band = size.Cols + "x" + size.Rows;
-            Calibration cal = calibrationByBand != null && calibrationByBand.TryGetValue(band, out var c)
-                ? c : null;
+            // Technique gate: the first board teaches unique-candidate placement;
+            // forced-cell logic arrives with the second board, elimination with the
+            // first 7x7. No band asks for a technique the player has not met yet.
+            int maxWeight = bandIndex == 0 ? 1 : bandIndex <= 2 ? 2 : 3;
 
             // generate the candidate pool once for the whole band (seed block per band)
-            int poolTarget = System.Math.Max(120, bandLevels.Count * 24);
+            int poolTarget = System.Math.Max(160, bandLevels.Count * 28);
             var pool = new List<Candidate>(poolTarget);
             var bandRejects = new Dictionary<RejectReason, int>();
             int seedsTried = 0;
@@ -181,6 +155,11 @@ namespace GridCut.Core
                     Count(bandRejects, attempt.RejectedAs);
                     continue;
                 }
+                if (attempt.DeductionMaxWeight > maxWeight)
+                {
+                    Count(bandRejects, RejectReason.TechniqueTooHard);
+                    continue;
+                }
                 if (!ClueCountOk(size, attempt.Puzzle.ClueCount, out var clueReject))
                 {
                     Count(bandRejects, clueReject);
@@ -192,39 +171,58 @@ namespace GridCut.Core
                     Count(bandRejects, RejectReason.Duplicate);
                     continue;
                 }
-                pool.Add(new Candidate { Attempt = attempt, NormScore = Normalize(attempt.Score, cal) });
+                pool.Add(new Candidate { Attempt = attempt, Difficulty = attempt.Difficulty });
             }
-            pool.Sort((a, b) => a.NormScore.CompareTo(b.NormScore));
-            // Papan 7x7+ punya kandidat sulit dan mudah yang terpisah jauh; jangan
-            // memakai kandidat lantai untuk level pertama band baru (lonjakan 1 -> 4).
-            float minNorm = size.Cells >= 49 ? 2f : 0f;
 
-            // assignment: easiest target gets the lowest available candidate
+            if (pool.Count == 0)
+            {
+                foreach (int level in bandLevels)
+                {
+                    statsOut[level] = new ExportStats { Level = level, TargetScore = LevelPlan.TargetScore(level), TimeOut = true };
+                    levels.Add(MakeFallback(level, size, LevelPlan.IsTutorial(level)));
+                }
+                return;
+            }
+
+            pool.Sort((a, b) => a.Difficulty.CompareTo(b.Difficulty));
+
+            // Assign by RANK, not by raw difficulty value. The raw distribution is
+            // bimodal (rule-1 boards around 3-5, rule-2 boards around 6-7), so a linear
+            // value mapping would jump to rule 2 at the third level of a band. Rank
+            // spacing keeps the early targets on rule-1 boards and crosses into rule 2
+            // only where the pool actually has those boards.
+            float targetFirst = LevelPlan.TargetScore(bandLevels[0]);
+            float targetLast = LevelPlan.TargetScore(bandLevels[bandLevels.Count - 1]);
+            int loIdx = (pool.Count - 1) * 2 / 100;
+            int hiIdx = (pool.Count - 1) * 98 / 100;
+            if (hiIdx <= loIdx) { loIdx = 0; hiIdx = pool.Count - 1; }
+
             var ordered = new List<int>(bandLevels);
             ordered.Sort((a, b) => LevelPlan.TargetScore(a).CompareTo(LevelPlan.TargetScore(b)));
             var used = new bool[pool.Count];
+            int prevIdx = -1;
 
             foreach (int level in ordered)
             {
                 float target = LevelPlan.TargetScore(level);
-                float clamped = ClampTarget(target, cal);
                 bool tutorial = LevelPlan.IsTutorial(level);
 
-                int best = -1;
-                float bestDelta = float.MaxValue;
-                for (int i = 0; i < pool.Count; i++)
+                float q = targetLast > targetFirst
+                    ? (target - targetFirst) / (targetLast - targetFirst)
+                    : 0f;
+                int want = loIdx + (int)System.Math.Round(q * (hiIdx - loIdx));
+                int idx = System.Math.Max(want, prevIdx + 1);
+                while (idx <= hiIdx && used[idx]) idx++;
+                if (idx > hiIdx)
                 {
-                    if (used[i]) continue;
-                    if (pool[i].NormScore < minNorm) continue;
-                    if (tutorial && pool[i].NormScore > 3.5f) continue;
-                    float d = System.Math.Abs(pool[i].NormScore - clamped);
-                    if (d < bestDelta) { bestDelta = d; best = i; }
+                    for (int i = hiIdx; i >= 0; i--)
+                        if (!used[i]) { idx = i; break; }
                 }
 
                 var stat = new ExportStats { Level = level, TargetScore = target, SeedsTried = (ulong)seedsTried };
                 foreach (var kv in bandRejects) stat.Rejects[kv.Key] = kv.Value;
 
-                if (best < 0)
+                if (idx < 0 || idx >= pool.Count)
                 {
                     stat.TimeOut = true;
                     levels.Add(MakeFallback(level, size, tutorial));
@@ -232,12 +230,13 @@ namespace GridCut.Core
                     continue;
                 }
 
-                float normScore = pool[best].NormScore;
-                if (bestDelta > ScoreTolerance) stat.TimeOut = true;
-                used[best] = true;
+                float normScore = targetFirst + (targetLast - targetFirst)
+                    * ((idx - loIdx) / (float)System.Math.Max(1, hiIdx - loIdx));
+                used[idx] = true;
+                prevIdx = idx;
                 stat.ChosenScore = normScore;
 
-                levels.Add(MakeLevel(level, size, pool[best].Attempt.Seed, normScore, tutorial, pool[best].Attempt));
+                levels.Add(MakeLevel(level, size, pool[idx].Attempt.Seed, normScore, tutorial, pool[idx].Attempt));
                 statsOut[level] = stat;
             }
         }
@@ -258,21 +257,6 @@ namespace GridCut.Core
             if (clues > max) { reason = RejectReason.TooManyClues; return false; }
             reason = RejectReason.None;
             return true;
-        }
-
-        public enum Acceptance { Yes, No }
-
-        /// <summary>
-        /// Band acceptance on the normalized 1..10 scale. The distribution of raw scores
-        /// is discrete with mass at the floor (exactly-1.0 normalized), so when a target
-        /// sits near the bottom, the floor itself is accepted instead of leaving a gap.
-        /// </summary>
-        private static Acceptance Acceptable(float score, float target, bool tutorial)
-        {
-            if (tutorial) return score <= 3.5f ? Acceptance.Yes : Acceptance.No;
-            float lowerEdge = System.Math.Min(1f, target - ScoreTolerance);
-            bool inBand = score >= lowerEdge && score <= target + ScoreTolerance;
-            return inBand ? Acceptance.Yes : Acceptance.No;
         }
 
         private static LevelData MakeLevel(int level, GridSize size, ulong seed, float score,

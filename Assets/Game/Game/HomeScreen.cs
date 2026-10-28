@@ -951,7 +951,7 @@ namespace GridCut.Game
             if (!SaveStore.ReduceMotion && btn != null)
                 StartUiCoroutine(PopThemeCard((RectTransform)btn.transform));
             if (!isActiveAndEnabled)
-                StartUiCoroutine(RefreshThemePickerAfterTransition());
+                StartUiCoroutine(RefreshThemePickerDuringTransition());
         }
 
         /// <summary>Coroutine UI tetap jalan saat Home nonaktif (theme picker dari win).</summary>
@@ -979,9 +979,15 @@ namespace GridCut.Game
             _lockedHint = null;
         }
 
-        IEnumerator RefreshThemePickerAfterTransition()
+        IEnumerator RefreshThemePickerDuringTransition()
         {
-            yield return new WaitForSecondsRealtime(ThemeApplier.TransitionSeconds + 0.03f);
+            float guard = 0f;
+            while (ThemeApplier.IsTransitioning && guard < 1f)
+            {
+                RefreshThemeTint();
+                guard += Time.unscaledDeltaTime;
+                yield return null;
+            }
             RefreshThemeTint();
             RefreshThemeDot();
         }
@@ -1118,6 +1124,13 @@ namespace GridCut.Game
             var text = ThemeApplier.ColorOf(ThemeApplier.Role.Text);
             var muted = ThemeApplier.ColorOf(ThemeApplier.Role.TextMuted);
             var lockedFill = ThemeApplier.ColorOf(ThemeApplier.Role.Locked);
+
+            // Popup ini bisa dibuka dari overlay win saat Home nonaktif; jangan
+            // bergantung pada _popupTint/_textTint/_frameTint yang hanya hidup saat
+            // Home aktif. Tombol X ikut diwarnai di sini supaya sama dengan menu utama.
+            if (ThemeCard != null) UiFactory.CardTint(ThemeCard, -20f);
+            if (ThemeCloseBtn != null) UiFactory.FrameTint(ThemeCloseBtn, true);
+            if (ThemeTitle != null) ThemeTitle.color = text;
 
             // Hint di bawah kartu tema harus ikut warna teks redup tema aktif;
             // warna cokelat bake-nya tidak terbaca di Night/Neon.

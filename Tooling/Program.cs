@@ -261,21 +261,11 @@ namespace GridCut.Tooling
         {
             var swOverall = Stopwatch.StartNew();
 
-            // 1. kalibrasi: rentang skor yang mampu dihasilkan per ukuran
-            var calibrations = new Dictionary<string, LevelSetBuilder.Calibration>();
-            Console.WriteLine("Kalibrasi per ukuran grid...");
-            foreach (var size in AllSizes())
-            {
-                var c = LevelSetBuilder.Calibrate(size, LevelSetBuilder.CalibrationSamplesPerSize);
-                calibrations[size.Cols + "x" + size.Rows] = c;
-                Console.WriteLine($"  {size.Cols}x{size.Rows}: {c.Samples} sampel, raw {c.MinRaw:0.##}..{c.MaxRaw:0.##} → skala 1..10 (p5 {c.LowAnchor:0.##} / p95 {c.HighAnchor:0.##})");
-            }
-
-            // 2. build 150 level
+            // 1. build 150 level
             var stats = new Dictionary<int, ExportStats>();
             var hashes = new HashSet<ulong>();
             Console.WriteLine("Membangun 150 level...");
-            var levels = LevelSetBuilder.Build(1, LevelPlan.TotalLevels, calibrations, hashes, stats);
+            var levels = LevelSetBuilder.Build(1, LevelPlan.TotalLevels, hashes, stats);
 
             int stalled = 0;
             foreach (var l in levels)
@@ -283,11 +273,11 @@ namespace GridCut.Tooling
             if (stalled > 0)
                 Console.WriteLine($"  PERINGATAN: {stalled} level fallback — perlu diperiksa (laporan).");
 
-            // 3. tulis berkas & laporan
+            // 2. tulis berkas & laporan
             string file = LevelJson.Write(levels);
             Directory.CreateDirectory("../Assets/Game/Content");
             File.WriteAllText(ExportPath, file);
-            File.WriteAllText($"{OutDir}/levels-report.txt", ReportText(levels, stats, calibrations));
+            File.WriteAllText($"{OutDir}/levels-report.txt", ReportText(levels, stats));
 
             swOverall.Stop();
             Console.WriteLine($"Ekspor {levels.Count} level -> {ExportPath} ({file.Length / 1024} KB)");
@@ -297,8 +287,7 @@ namespace GridCut.Tooling
 
         private static string ReportText(
             List<LevelData> levels,
-            Dictionary<int, ExportStats> stats,
-            Dictionary<string, LevelSetBuilder.Calibration> calibrations)
+            Dictionary<int, ExportStats> stats)
         {
             var lines = new List<string>
             {
@@ -318,10 +307,6 @@ namespace GridCut.Tooling
                 lines.Add($"{l.Id}\t{l.Cols}x{l.Rows}\t{l.Seed}\t{l.Score:0.##}\t{st.TargetScore:0.##}\t{st.SeedsTried}\t{rejects}");
             }
 
-            lines.Add("");
-            lines.Add("KALIBRASI (sampel per ukuran, skala mentah → ternormalisasi 1..10):");
-            foreach (var c in calibrations.Values)
-                lines.Add($"{c.Size.Cols}x{c.Size.Rows}: {c.Samples} sampel, raw {c.MinRaw:0.##}..{c.MaxRaw:0.##}, jangkar p5={c.LowAnchor:0.##} p95={c.HighAnchor:0.##}");
             return string.Join("\n", lines);
         }
     }

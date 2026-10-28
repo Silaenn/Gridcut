@@ -2,8 +2,9 @@ namespace GridCut.Core
 {
     /// <summary>
     /// Level progression table: grid size per level band and the target difficulty score.
-    /// Score scale is 1..10. Breath levels (every 10th) get 30% off; the first level of
-    /// a new grid size gets 20% off.
+    /// Score scale is 1..10 on a linear, monotonic curve. Early bands are short so the
+    /// first big board (7x7) arrives at level 21 instead of after a long easy stretch.
+    /// Inside each band LevelSetBuilder spreads candidates over that band's target span.
     /// </summary>
     public static class LevelPlan
     {
@@ -11,41 +12,26 @@ namespace GridCut.Core
 
         public static GridSize SizeForLevel(int level)
         {
-            if (level <= 6) return new GridSize(5, 5);      // onboarding pendek
-            if (level <= 14) return new GridSize(6, 5);
-            if (level <= 27) return new GridSize(6, 6);     // kotak pertama
-            if (level <= 42) return new GridSize(7, 7);
-            if (level <= 58) return new GridSize(8, 6);
-            if (level <= 78) return new GridSize(9, 7);
-            if (level <= 103) return new GridSize(10, 8);
-            if (level <= 127) return new GridSize(12, 8);
+            if (level <= 5) return new GridSize(5, 5);      // tutorial + dua pemanasan
+            if (level <= 12) return new GridSize(6, 5);
+            if (level <= 20) return new GridSize(6, 6);     // kotak pertama
+            if (level <= 34) return new GridSize(7, 7);     // papan besar pertama
+            if (level <= 49) return new GridSize(8, 6);
+            if (level <= 66) return new GridSize(9, 7);
+            if (level <= 87) return new GridSize(10, 8);
+            if (level <= 116) return new GridSize(12, 8);
             return new GridSize(14, 8);
         }
 
         public static bool IsTutorial(int level) => level >= 1 && level <= 3;
 
-        public static bool IsBreather(int level) =>
-            level > 1 && level % 10 == 0 && level < TotalLevels;
-
-        /// <summary>First level that starts a new size band.</summary>
-        public static int[] FirstLevelOfEachBand =
-            { 1, 7, 15, 28, 43, 59, 79, 104, 128 };
-
-        public static bool IsFirstOfNewSize(int level)
-        {
-            for (int i = 0; i < FirstLevelOfEachBand.Length; i++)
-                if (FirstLevelOfEachBand[i] == level) return true;
-            return false;
-        }
-
-        /// <summary>Target difficulty score for level n (1-based), tolerance applied by the caller.</summary>
+        /// <summary>Target difficulty score for level n (1-based).
+        /// Linear 1..10: roughly +0.6 every 10 levels, so each chapter feels like a
+        /// step without a wall. Within a size band the builder spreads candidates
+        /// across exactly this target range (see LevelSetBuilder.BuildBand).</summary>
         public static float TargetScore(int level)
         {
-            float s = 1f + 9f * (level - 1) / 149f;
-            // Kurva dijaga monoton; jeda napas/ukuran baru ditangani lewat
-            // struktur soal, bukan dengan menurunkan skor target secara mendadak.
-
-            return s;
+            return 1f + 9f * (level - 1) / 149f;
         }
     }
 

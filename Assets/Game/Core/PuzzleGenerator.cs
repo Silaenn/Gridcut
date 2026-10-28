@@ -14,7 +14,8 @@ namespace GridCut.Core
         OutOfScoreRange,    // difficulty score outside the accepted band (export-time only)
         Duplicate,          // canonical hash already seen (rotation/mirror of another level)
         TooFewClues,        // too few rectangles: level risks one obvious block
-        TooManyClues        // too many tiny rectangles: level becomes cleanup work
+        TooManyClues,       // too many tiny rectangles: level becomes cleanup work
+        TechniqueTooHard    // solver needed a technique not unlocked at this point
     }
 
     /// <summary>Result of one generation attempt for one seed.</summary>
@@ -24,7 +25,12 @@ namespace GridCut.Core
         public RejectReason RejectedAs;
         public Puzzle Puzzle;
         public List<RectI> Solution;     // solution rectangles, same order as Clues
+        /// <summary>Raw solver score: sum(step weights)/clues + 2*max weight.</summary>
         public float Score;
+        /// <summary>Continuous curve score: solver score plus how much ambiguity the
+        /// opening position has. Rule-1-only puzzles all share Score=3, so this term
+        /// spreads them by clue density and initial candidates.</summary>
+        public float Difficulty;
         public long DeductionWeightSum;
         public int DeductionMaxWeight;
         public ulong Seed;
@@ -86,6 +92,19 @@ namespace GridCut.Core
             // 4. pattern filters
             RejectReason reason = ApplyFilters(rects, cols, rows);
             if (reason != RejectReason.None) return Reject(result, reason);
+
+            // Rule-1-only boards all score exactly 3, which used to flatten the first
+            // third of the game. Count the opening candidates and the average piece
+            // size so the curve can tell an easy 5x5 from a dense one. Only accepted
+            // candidates pay for this extra pass.
+            var opening = RectCandidates.Build(puzzle);
+            int openingTotal = 0;
+            for (int i = 0; i < opening.Length; i++) openingTotal += opening[i].Count;
+            float avgCandidates = openingTotal / (float)puzzle.ClueCount;
+            float avgArea = (cols * rows) / (float)puzzle.ClueCount;
+            result.Difficulty = solve.Score
+                                + 0.5f * (avgCandidates - 1f)
+                                + 0.35f * (avgArea / 8f);
 
             result.Ok = true;
             return result;
