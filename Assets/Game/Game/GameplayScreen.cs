@@ -30,7 +30,7 @@ namespace GridCut.Game
         public RectTransform WinCard;
         public CanvasGroup WinCardGroup;
         public TMP_Text WinTitle, WinDetail, WinReason;
-        public Button WinNextBtn, WinMenuBtn, WinRepeatBtn;
+        public Button WinNextBtn, WinMenuBtn, WinRepeatBtn, WinThemeBtn;
         public RectTransform WinStarsRow;
         public Image[] WinStars = new Image[3];
         public TMP_Text WinNextLabel;
@@ -49,6 +49,7 @@ namespace GridCut.Game
 
         Action<Color> _textTint, _boardTint, _accentTint, _frameTint, _primaryTint, _badgeTint, _mutedTint;
         Image _badgeBack, _badgeDisc, _muteOn, _muteOff, _lamp;
+        public Image[] WinThemeSwatches;
         TMP_Text _badgeCount;
         Coroutine _bannerCo;
 
@@ -75,6 +76,7 @@ namespace GridCut.Game
             Add(WinNextBtn, NextLevel);
             Add(WinMenuBtn, GoHome);
             Add(WinRepeatBtn, Replay);
+            Add(WinThemeBtn, OpenThemePicker);
             Add(WinDimBtn, SkipWinAnimation);
 
             _textTint = c =>
@@ -82,6 +84,7 @@ namespace GridCut.Game
                 if (LevelTitle != null) LevelTitle.color = c;
                 if (WinTitle != null) WinTitle.color = c;
                 if (WinBannerLabel != null) WinBannerLabel.color = c;
+                RefreshWinThemeIcon();
             };
             _mutedTint = c =>
             {
@@ -106,7 +109,8 @@ namespace GridCut.Game
             _frameTint = _ =>
             {
                 Frame(BackBtn); Frame(ResetBtn); Frame(MuteBtn);
-                Frame(WinMenuBtn); Frame(WinRepeatBtn);
+                Frame(WinMenuBtn); Frame(WinRepeatBtn); Frame(WinThemeBtn);
+                RefreshWinThemeIcon();
                 if (WinCard != null) UiFactory.CardTint(WinCard, -20f);
                 if (WinBanner != null) UiFactory.CardTint(WinBanner.transform, -12f);
                 UpdateWinStarColors();
@@ -139,6 +143,14 @@ namespace GridCut.Game
 
         static void Frame(Button b) { if (b != null) UiFactory.FrameTint(b, true); }
 
+        void RefreshWinThemeIcon()
+        {
+            if (WinThemeSwatches == null) return;
+            for (int i = 0; i < WinThemeSwatches.Length; i++)
+                if (WinThemeSwatches[i] != null)
+                    WinThemeSwatches[i].color = ThemeApplier.ColorOf(ThemeApplier.Role.Rect, i);
+        }
+
         static void RebaseButton(Button b)
         {
             if (b == null) return;
@@ -148,6 +160,7 @@ namespace GridCut.Game
 
         void OnEnable()
         {
+            RefreshWinThemeIcon();
             ThemeApplier.Subscribe(ThemeApplier.Role.Text, _textTint, true);
             ThemeApplier.Subscribe(ThemeApplier.Role.TextMuted, _mutedTint, true);
             ThemeApplier.Subscribe(ThemeApplier.Role.CellEmpty, _boardTint, true);
@@ -219,6 +232,7 @@ namespace GridCut.Game
             if (WinNextBtn == null) WinNextBtn = UiFactory.Wire<Button>(this, null, "WinOverlay/Card/Buttons/NextBtn");
             if (WinMenuBtn == null) WinMenuBtn = UiFactory.Wire<Button>(this, null, "WinOverlay/Card/Buttons/MenuBtn");
             if (WinRepeatBtn == null) WinRepeatBtn = UiFactory.Wire<Button>(this, null, "WinOverlay/Card/Buttons/ReplayBtn");
+            if (WinThemeBtn == null) WinThemeBtn = UiFactory.Wire<Button>(this, null, "WinOverlay/Card/ThemeBtn");
             if (WinStarsRow == null) WinStarsRow = UiFactory.Wire<RectTransform>(this, null, "WinOverlay/Card/Stars");
             if (WinStars == null || WinStars.Length != 3)
             {
@@ -293,6 +307,7 @@ namespace GridCut.Game
             _menuGroup = EnsureGroup(WinMenuBtn != null ? WinMenuBtn.gameObject : null);
             _nextGroup = EnsureGroup(WinNextBtn != null ? WinNextBtn.gameObject : null);
             _repeatGroup = EnsureGroup(WinRepeatBtn != null ? WinRepeatBtn.gameObject : null);
+            EnsureGroup(WinThemeBtn != null ? WinThemeBtn.gameObject : null);
             _bestGroup = EnsureGroup(WinNewBest);
             _bannerGroup = EnsureGroup(WinBanner);
 
@@ -702,9 +717,11 @@ namespace GridCut.Game
 
         void EnableWinButtons(bool on)
         {
+            if (WinThemeBtn != null) WinThemeBtn.gameObject.SetActive(on);
             SetWinButton(WinNextBtn, on);
             SetWinButton(WinMenuBtn, on);
             SetWinButton(WinRepeatBtn, on);
+            SetWinButton(WinThemeBtn, on);
         }
 
         static void SetWinButton(Button b, bool on)
@@ -911,6 +928,12 @@ namespace GridCut.Game
             AudioService.Play("tap");
             CloseWin();
             Show(Mathf.Min(_levelId + 1, SaveStore.LevelCount));
+        }
+
+        public void OpenThemePicker()
+        {
+            if (AppRoot.Instance != null && AppRoot.Instance.Home != null)
+                AppRoot.Instance.Home.OpenThemePicker();
         }
 
         public void Replay()

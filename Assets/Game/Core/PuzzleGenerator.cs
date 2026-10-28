@@ -12,7 +12,9 @@ namespace GridCut.Core
         TooFewBig,          // (8x6 and up) fewer than 30% of rects have area >= 4
         Liney,              // >=70% of rects span the full width or height
         OutOfScoreRange,    // difficulty score outside the accepted band (export-time only)
-        Duplicate           // canonical hash already seen (rotation/mirror of another level)
+        Duplicate,          // canonical hash already seen (rotation/mirror of another level)
+        TooFewClues,        // too few rectangles: level risks one obvious block
+        TooManyClues        // too many tiny rectangles: level becomes cleanup work
     }
 
     /// <summary>Result of one generation attempt for one seed.</summary>
@@ -37,13 +39,24 @@ namespace GridCut.Core
     {
         public const int PaletteColors = 6;
 
-        public static GenAttempt Generate(int cols, int rows, ulong seed)
+        /// <summary>Optional generation limits. Zero means unlimited.</summary>
+        public struct GenRules
+        {
+            /// <summary>Reject candidate rectangles larger than this area. Keeps
+            /// early boards from being dominated by one obvious 15/20 block.</summary>
+            public int MaxRectArea;
+        }
+
+        public static GenAttempt Generate(int cols, int rows, ulong seed) =>
+            Generate(cols, rows, seed, default);
+
+        public static GenAttempt Generate(int cols, int rows, ulong seed, GenRules rules)
         {
             var result = new GenAttempt { RejectedAs = RejectReason.None, Seed = seed };
             var rng = new Prng(seed);
 
             // 1. random partition
-            var rects = Partition(cols, rows, rng);
+            var rects = Partition(cols, rows, rng, rules);
 
             // 2. clue: one per rect, value = area, placed on a random cell of the rect
             var clues = new Clue[rects.Count];
@@ -186,7 +199,7 @@ namespace GridCut.Core
         // quadratic small-biased sampling; guaranteed to cover the whole grid.
         // ------------------------------------------------------------------
 
-        private static List<RectI> Partition(int cols, int rows, Prng rng)
+        private static List<RectI> Partition(int cols, int rows, Prng rng, GenRules rules)
         {
             var free = new bool[cols * rows];
             for (int i = 0; i < free.Length; i++) free[i] = true;
@@ -207,19 +220,20 @@ namespace GridCut.Core
                 int freeH = 0;
                 while (ay + freeH < rows && free[(ay + freeH) * cols + ax]) freeH++;
 
-                var rect = SampleRectangle(cols, rows, free, ax, ay, freeW, freeH, rng);
+                var rect = SampleRectangle(cols, rows, free, ax, ay, freeW, freeH, rng, rules);
                 Mark(free, cols, rows, rect, false);
                 rects.Add(rect);
             }
             return rects;
         }
 
-        private static RectI SampleRectangle(int cols, int rows, bool[] free, int ax, int ay, int freeW, int freeH, Prng rng)
+        private static RectI SampleRectangle(int cols, int rows, bool[] free, int ax, int ay, int freeW, int freeH, Prng rng, GenRules rules)
         {
-            for (int attempt = 0; attempt < 12; attempt++)
+            for (int attempt = 0; attempt < 24; attempt++)
             {
                 int w = SampleDim(freeW, rng);
                 int h = SampleDim(freeH, rng);
+                if (rules.MaxRectArea > 0 && w * h > rules.MaxRectArea) continue;
                 var rect = new RectI(ax, ay, w, h);
                 if (RectFullyFree(cols, free, rect)) return rect;
             }

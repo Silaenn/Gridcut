@@ -11,21 +11,25 @@ namespace GridCut.Core
 
         public static GridSize SizeForLevel(int level)
         {
-            if (level <= 12) return new GridSize(5, 5);     // spec bag.4: mulai 5x5
-            if (level <= 30) return new GridSize(6, 5);
-            if (level <= 55) return new GridSize(8, 6);
-            if (level <= 85) return new GridSize(10, 6);
-            if (level <= 120) return new GridSize(12, 6);
-            return new GridSize(14, 6);
+            if (level <= 6) return new GridSize(5, 5);      // onboarding pendek
+            if (level <= 14) return new GridSize(6, 5);
+            if (level <= 27) return new GridSize(6, 6);     // kotak pertama
+            if (level <= 42) return new GridSize(7, 7);
+            if (level <= 58) return new GridSize(8, 6);
+            if (level <= 78) return new GridSize(9, 7);
+            if (level <= 103) return new GridSize(10, 8);
+            if (level <= 127) return new GridSize(12, 8);
+            return new GridSize(14, 8);
         }
 
         public static bool IsTutorial(int level) => level >= 1 && level <= 3;
 
-        public static bool IsBreather(int level) => level >= 1 && level % 10 == 0;
+        public static bool IsBreather(int level) =>
+            level > 1 && level % 10 == 0 && level < TotalLevels;
 
         /// <summary>First level that starts a new size band.</summary>
         public static int[] FirstLevelOfEachBand =
-            { 1, 13, 31, 56, 86, 121 };
+            { 1, 7, 15, 28, 43, 59, 79, 104, 128 };
 
         public static bool IsFirstOfNewSize(int level)
         {
@@ -38,8 +42,9 @@ namespace GridCut.Core
         public static float TargetScore(int level)
         {
             float s = 1f + 9f * (level - 1) / 149f;
-            if (IsBreather(level)) s *= 0.7f;
-            if (IsFirstOfNewSize(level)) s *= 0.8f;
+            // Kurva dijaga monoton; jeda napas/ukuran baru ditangani lewat
+            // struktur soal, bukan dengan menurunkan skor target secara mendadak.
+
             return s;
         }
     }

@@ -380,6 +380,22 @@ namespace GridCut.Game
 
         // ------------------------------ theme popup ------------------------------
 
+        /// <summary>Buka pemilih tema dari layar lain (mis. overlay win). Home boleh
+        /// sedang nonaktif: popup berada di Overlay global dan listener tetap hidup.</summary>
+        public void OpenThemePicker()
+        {
+            var p = PopupOf(ThemePopup);
+            if (p == null) return;
+            if (!p.IsOpen)
+            {
+                RefreshThemeTint();
+                p.Show();
+                SaveStore.MarkThemesSeen();
+                RefreshThemeDot();
+            }
+            AudioService.Play("tap");
+        }
+
         /// <summary>Tema: home button membuka/menutup popup berisi kelima swatch.</summary>
         void ToggleThemePopup()
         {
@@ -917,7 +933,7 @@ namespace GridCut.Game
             if (!unlocked)
             {
                 AudioService.Play("invalid");
-                if (btn != null)
+                if (btn != null && isActiveAndEnabled)
                 {
                     if (!SaveStore.ReduceMotion)
                         StartCoroutine(ShakeCard(btn.GetComponent<RectTransform>()));
@@ -931,8 +947,17 @@ namespace GridCut.Game
             RefreshThemeTint();
             _themeRepaintPending = true;
             AudioService.Play("theme_select");
-            if (!SaveStore.ReduceMotion && btn != null)
+            if (!SaveStore.ReduceMotion && btn != null && isActiveAndEnabled)
                 StartCoroutine(PopThemeCard((RectTransform)btn.transform));
+            if (!isActiveAndEnabled && AppRoot.Instance != null)
+                AppRoot.Instance.StartCoroutine(RefreshThemePickerAfterTransition());
+        }
+
+        IEnumerator RefreshThemePickerAfterTransition()
+        {
+            yield return new WaitForSecondsRealtime(ThemeApplier.TransitionSeconds + 0.03f);
+            RefreshThemeTint();
+            RefreshThemeDot();
         }
 
         IEnumerator PopThemeCard(RectTransform rt)

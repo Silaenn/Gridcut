@@ -41,7 +41,7 @@ namespace GridCut.Game
 
         const float MaxCell = 140f;
         const float AreaW = 1536f;
-        const float AreaH = 748f;
+        const float AreaH = 690f;
         const float BoardRadius = 48f;
         const float InputMargin = 24f;
         const float HintHeight = 128f;
@@ -120,6 +120,8 @@ namespace GridCut.Game
             if (h <= 1f) h = 1080f;
 
             float cw = Mathf.Min(AreaW, _slot != null ? _slot.rect.width : AreaW);
+            // Batas tinggi ini menjaga jarak ke baris tombol atas (120 px) di semua
+            // ukuran papan, termasuk 5x5 dan papan 7-8 baris.
             float cell = Mathf.Floor(Mathf.Min(
                 (cw - 2f * NormalPad - NormalGap * (Cols - 1)) / Cols,
                 (AreaH - 2f * NormalPad - NormalGap * (Rows - 1)) / Rows));

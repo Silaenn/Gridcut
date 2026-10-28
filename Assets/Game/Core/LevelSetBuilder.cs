@@ -40,6 +40,17 @@ namespace GridCut.Core
         }
 
         /// <summary>Sample candidate puzzles for one grid size to learn the achievable score range.</summary>
+        /// <summary>Keeps a single obvious block from carrying the whole puzzle.
+        /// Roughly one quarter of the board, with a floor of 8 cells.</summary>
+        public static PuzzleGenerator.GenRules RulesFor(GridSize size)
+        {
+            int cells = size.Cols * size.Rows;
+            return new PuzzleGenerator.GenRules
+            {
+                MaxRectArea = System.Math.Max(8, (cells + 3) / 4),
+            };
+        }
+
         public static Calibration Calibrate(GridSize size, int sampleCount)
         {
             var cal = new Calibration { Size = size, MinRaw = float.MaxValue, MaxRaw = 0f };
@@ -48,7 +59,7 @@ namespace GridCut.Core
             int got = 0;
             while (got < sampleCount && seed < MaxSeedsPerLevel * 4)
             {
-                var attempt = PuzzleGenerator.Generate(size.Cols, size.Rows, seed);
+                var attempt = PuzzleGenerator.Generate(size.Cols, size.Rows, seed, RulesFor(size));
                 if (attempt.Ok)
                 {
                     raws.Add(attempt.Score);
@@ -155,7 +166,7 @@ namespace GridCut.Core
                 ? c : null;
 
             // generate the candidate pool once for the whole band (seed block per band)
-            int poolTarget = System.Math.Max(40, bandLevels.Count * 8);
+            int poolTarget = System.Math.Max(120, bandLevels.Count * 24);
             var pool = new List<Candidate>(poolTarget);
             var bandRejects = new Dictionary<RejectReason, int>();
             int seedsTried = 0;
@@ -164,10 +175,15 @@ namespace GridCut.Core
             for (int i = 0; pool.Count < poolTarget && i < MaxSeedsPerBand; i++)
             {
                 seedsTried++;
-                var attempt = PuzzleGenerator.Generate(size.Cols, size.Rows, (ulong)(seedBase + (ulong)i));
+                var attempt = PuzzleGenerator.Generate(size.Cols, size.Rows, (ulong)(seedBase + (ulong)i), RulesFor(size));
                 if (!attempt.Ok)
                 {
                     Count(bandRejects, attempt.RejectedAs);
+                    continue;
+                }
+                if (!ClueCountOk(size, attempt.Puzzle.ClueCount, out var clueReject))
+                {
+                    Count(bandRejects, clueReject);
                     continue;
                 }
                 ulong hash = PuzzleGenerator.CanonicalHash(attempt.Puzzle);
@@ -179,6 +195,9 @@ namespace GridCut.Core
                 pool.Add(new Candidate { Attempt = attempt, NormScore = Normalize(attempt.Score, cal) });
             }
             pool.Sort((a, b) => a.NormScore.CompareTo(b.NormScore));
+            // Papan 7x7+ punya kandidat sulit dan mudah yang terpisah jauh; jangan
+            // memakai kandidat lantai untuk level pertama band baru (lonjakan 1 -> 4).
+            float minNorm = size.Cells >= 49 ? 2f : 0f;
 
             // assignment: easiest target gets the lowest available candidate
             var ordered = new List<int>(bandLevels);
@@ -196,6 +215,7 @@ namespace GridCut.Core
                 for (int i = 0; i < pool.Count; i++)
                 {
                     if (used[i]) continue;
+                    if (pool[i].NormScore < minNorm) continue;
                     if (tutorial && pool[i].NormScore > 3.5f) continue;
                     float d = System.Math.Abs(pool[i].NormScore - clamped);
                     if (d < bestDelta) { bestDelta = d; best = i; }
@@ -220,6 +240,24 @@ namespace GridCut.Core
                 levels.Add(MakeLevel(level, size, pool[best].Attempt.Seed, normScore, tutorial, pool[best].Attempt));
                 statsOut[level] = stat;
             }
+        }
+
+        static bool ClueCountOk(GridSize size, int clues, out RejectReason reason)
+        {
+            int min, max;
+            int cells = size.Cols * size.Rows;
+            if (cells >= 112) { min = 13; max = 24; }
+            else if (cells >= 96) { min = 12; max = 24; }
+            else if (cells >= 80) { min = 11; max = 22; }
+            else if (cells >= 63) { min = 10; max = 20; }
+            else if (cells >= 48) { min = 10; max = 18; }
+            else if (cells >= 36) { min = 7; max = 16; }
+            else if (cells >= 30) { min = 6; max = 14; }
+            else { min = 5; max = 12; }
+            if (clues < min) { reason = RejectReason.TooFewClues; return false; }
+            if (clues > max) { reason = RejectReason.TooManyClues; return false; }
+            reason = RejectReason.None;
+            return true;
         }
 
         public enum Acceptance { Yes, No }
