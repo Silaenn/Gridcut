@@ -1024,13 +1024,23 @@ namespace GridCut.Game
         {
             const float amp = 8f;
             const float step = 0.2f / 6f;
-            var basePos = rt != null ? rt.anchoredPosition : Vector2.zero;
+            float baseX = rt != null ? rt.anchoredPosition.x : 0f;
             for (int k = 0; k < 6; k++)
             {
-                if (rt != null) rt.anchoredPosition = basePos + new Vector2((k % 2 == 0 ? -1f : 1f) * amp, 0f);
+                if (rt == null) yield break;
+                // Hanya X yang digetarkan. Y tetap milik ButtonFX supaya posisi
+                // hover bisa kembali normal walau pointer keluar di tengah shake.
+                var p = rt.anchoredPosition;
+                p.x = baseX + (k % 2 == 0 ? -amp : amp);
+                rt.anchoredPosition = p;
                 yield return new WaitForSecondsRealtime(step);
             }
-            if (rt != null) rt.anchoredPosition = basePos;
+            if (rt != null)
+            {
+                var p = rt.anchoredPosition;
+                p.x = baseX;
+                rt.anchoredPosition = p;
+            }
         }
 
         // ------------------------------ huruf logo (spec) ------------------------------
