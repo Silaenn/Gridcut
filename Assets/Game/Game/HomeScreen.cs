@@ -48,6 +48,7 @@ namespace GridCut.Game
         static bool _introPlayed;
         Coroutine _introCo;
         Coroutine _lockedHint;
+        bool _lockedHintExternal;
         bool _themeRepaintPending;
         RectTransform[] _introLogos;
         Vector2[] _introLogoBase;
@@ -188,7 +189,7 @@ namespace GridCut.Game
         void OnDisable()
         {
             if (_introCo != null) { StopCoroutine(_introCo); _introCo = null; }
-            if (_lockedHint != null) { StopCoroutine(_lockedHint); _lockedHint = null; }
+            StopLockedHint();
             if (_knobCo != null) { StopCoroutine(_knobCo); _knobCo = null; }
             if (ResetToast != null) ResetToast.SetActive(false);
             SetIntroFinal();   // jangan tinggalkan alpha/posisi di tengah animasi
@@ -926,19 +927,19 @@ namespace GridCut.Game
 
         public void SelectTheme(int index)
         {
-            if (_lockedHint != null) { StopCoroutine(_lockedHint); _lockedHint = null; }
+            StopLockedHint();
             var th = ThemeLibrary.All[index];
             bool unlocked = SaveStore.UnlockedLevel > th.UnlockLevel || th.UnlockLevel <= 1;
             var btn = index < ThemeSwatches.Length ? ThemeSwatches[index] : null;
             if (!unlocked)
             {
                 AudioService.Play("invalid");
-                if (btn != null && isActiveAndEnabled)
+                if (btn != null)
                 {
                     if (!SaveStore.ReduceMotion)
-                        StartCoroutine(ShakeCard(btn.GetComponent<RectTransform>()));
+                        StartUiCoroutine(ShakeCard(btn.GetComponent<RectTransform>()));
                     int more = Mathf.Max(1, th.UnlockLevel - SaveStore.UnlockedLevel + 1);
-                    _lockedHint = StartCoroutine(LockedPillHint(index, more));
+                    StartLockedHint(LockedPillHint(index, more));
                 }
                 return;
             }
@@ -947,10 +948,35 @@ namespace GridCut.Game
             RefreshThemeTint();
             _themeRepaintPending = true;
             AudioService.Play("theme_select");
-            if (!SaveStore.ReduceMotion && btn != null && isActiveAndEnabled)
-                StartCoroutine(PopThemeCard((RectTransform)btn.transform));
-            if (!isActiveAndEnabled && AppRoot.Instance != null)
-                AppRoot.Instance.StartCoroutine(RefreshThemePickerAfterTransition());
+            if (!SaveStore.ReduceMotion && btn != null)
+                StartUiCoroutine(PopThemeCard((RectTransform)btn.transform));
+            if (!isActiveAndEnabled)
+                StartUiCoroutine(RefreshThemePickerAfterTransition());
+        }
+
+        /// <summary>Coroutine UI tetap jalan saat Home nonaktif (theme picker dari win).</summary>
+        Coroutine StartUiCoroutine(IEnumerator co)
+        {
+            if (co == null) return null;
+            if (isActiveAndEnabled) return StartCoroutine(co);
+            return AppRoot.Instance != null ? AppRoot.Instance.StartCoroutine(co) : null;
+        }
+
+        void StartLockedHint(IEnumerator co)
+        {
+            _lockedHintExternal = !isActiveAndEnabled;
+            _lockedHint = StartUiCoroutine(co);
+        }
+
+        void StopLockedHint()
+        {
+            if (_lockedHint == null) return;
+            if (_lockedHintExternal)
+            {
+                if (AppRoot.Instance != null) AppRoot.Instance.StopCoroutine(_lockedHint);
+            }
+            else StopCoroutine(_lockedHint);
+            _lockedHint = null;
         }
 
         IEnumerator RefreshThemePickerAfterTransition()
