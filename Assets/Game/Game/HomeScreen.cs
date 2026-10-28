@@ -357,12 +357,14 @@ namespace GridCut.Game
 
         public void ToggleSound()
         {
-            SaveStore.SetSound(!SaveStore.SoundOn);
+            bool on = !SaveStore.SoundOn;
+            if (!on) AudioService.Play("toggle_off");   // masih terdengar sebelum mute
+            SaveStore.SetSound(on);
             RefreshLabels();
             RefreshMuteIcon();
             RefreshSettingsLabels();
             AudioService.RefreshMusicVolume();
-            AudioService.Play("tap");
+            if (on) AudioService.Play("toggle_on");
         }
 
         // ------------------ top-right icon pair (spec bag. 5) ------------------
@@ -383,18 +385,19 @@ namespace GridCut.Game
         {
             var p = PopupOf(ThemePopup);
             if (p == null) return;
-            if (p.IsOpen)
-            {
-                p.Hide();
-            }
-            else
+            bool opening = !p.IsOpen;
+            if (opening)
             {
                 p.Show();
                 RefreshThemeTint();           // setelah Show: CanvasGroup kartu sudah Awake
                 SaveStore.MarkThemesSeen();   // titik tema baru hilang setelah popup dibuka
                 RefreshThemeDot();
             }
-            AudioService.Play("tap");
+            else
+            {
+                p.Hide();
+            }
+            AudioService.Play(opening ? "popup_open" : "popup_close");
         }
 
         // --------------------------- settings popup ---------------------------
@@ -406,7 +409,7 @@ namespace GridCut.Game
             if (ResetToast != null) ResetToast.SetActive(false);   // status hanya setelah reset
             RefreshSettingsLabels();
             p.Show();
-            AudioService.Play("tap");
+            AudioService.Play("popup_open");
         }
 
         void CloseSettings()
@@ -417,7 +420,7 @@ namespace GridCut.Game
             if (ResetToast != null) ResetToast.SetActive(false);
             var p = PopupOf(SettingsPopup);
             if (p != null) p.Hide();
-            AudioService.Play("tap");
+            AudioService.Play("popup_close");
         }
 
         /// <summary>Replay tutorial: tutup Pengaturan lalu buka Level 1 (tutorial).
@@ -470,7 +473,7 @@ namespace GridCut.Game
                 SetIntroFinal();
             }
             StyleSettings();
-            AudioService.Play("tap");
+            AudioService.Play(on ? "toggle_on" : "toggle_off");
         }
 
         void SetKnob(bool on, bool instant)
@@ -766,9 +769,17 @@ namespace GridCut.Game
             return 1f + c3 * t * t * t + c1 * t * t;
         }
 
-        public void StartContinue() => AppRoot.Instance.StartContinue();
+        public void StartContinue()
+        {
+            AudioService.Play("tap");
+            AppRoot.Instance.StartContinue();
+        }
 
-        public void OpenLevelSelect() => AppRoot.Instance.OpenLevelSelect();
+        public void OpenLevelSelect()
+        {
+            AudioService.Play("tap");
+            AppRoot.Instance.OpenLevelSelect();
+        }
 
         public void ShowResetConfirm()
         {
@@ -776,6 +787,7 @@ namespace GridCut.Game
             if (p == null) return;
             if (ConfirmYes != null) ConfirmYes.interactable = true;
             if (ConfirmNo != null) ConfirmNo.interactable = true;
+            AudioService.Play("reset_confirm");
             p.Show();
             StartCoroutine(SelectCancelNextFrame());
         }
@@ -791,6 +803,7 @@ namespace GridCut.Game
         {
             PopupOf(ConfirmDialog)?.Hide();
             ClearConfirmSelection();
+            AudioService.Play("popup_close");
         }
 
         void ClearConfirmSelection()
@@ -826,7 +839,7 @@ namespace GridCut.Game
             if (ConfirmNo != null) ConfirmNo.interactable = true;
             ClearConfirmSelection();
             ShowResetStatus();
-            AudioService.Play("tap");
+            AudioService.Play("reset_done");
         }
 
         /// <summary>Pindahkan pill status ke dalam kartu Pengaturan, tepat di atas
@@ -917,7 +930,7 @@ namespace GridCut.Game
             ThemeApplier.Apply(index);
             RefreshThemeTint();
             _themeRepaintPending = true;
-            AudioService.Play("tap");
+            AudioService.Play("theme_select");
             if (!SaveStore.ReduceMotion && btn != null)
                 StartCoroutine(PopThemeCard((RectTransform)btn.transform));
         }

@@ -4468,8 +4468,8 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 1, y: 1}
   m_AnchorMax: {x: 1, y: 1}
-  m_AnchoredPosition: {x: -208, y: -24}
-  m_SizeDelta: {x: 144, y: 144}
+  m_AnchoredPosition: {x: -184, y: -24}
+  m_SizeDelta: {x: 120, y: 120}
   m_Pivot: {x: 1, y: 1}
 --- !u!225 &223499206
 CanvasGroup:
@@ -7432,7 +7432,7 @@ RectTransform:
   m_AnchorMin: {x: 0, y: 1}
   m_AnchorMax: {x: 0, y: 1}
   m_AnchoredPosition: {x: 40, y: -24}
-  m_SizeDelta: {x: 144, y: 144}
+  m_SizeDelta: {x: 120, y: 120}
   m_Pivot: {x: 0, y: 1}
 --- !u!225 &521705832
 CanvasGroup:
@@ -16275,6 +16275,7 @@ MonoBehaviour:
   SettingsCard: {fileID: 21000033}
   ConfirmCard: {fileID: 24000124}
   ThemeTitle: {fileID: 21000014}
+  ThemesHint: {fileID: 0}
   SettingsTitle: {fileID: 21000037}
   ConfirmQuestion: {fileID: 2996570}
   ConfirmWarning: {fileID: 1113251310}
@@ -22140,7 +22141,7 @@ RectTransform:
   m_AnchorMin: {x: 1, y: 1}
   m_AnchorMax: {x: 1, y: 1}
   m_AnchoredPosition: {x: -40, y: -24}
-  m_SizeDelta: {x: 144, y: 144}
+  m_SizeDelta: {x: 120, y: 120}
   m_Pivot: {x: 1, y: 1}
 --- !u!225 &1646705881
 CanvasGroup:

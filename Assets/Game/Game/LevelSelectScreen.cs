@@ -152,7 +152,7 @@ namespace GridCut.Game
         {
             int target = Mathf.Clamp(_page + dir, 0, PageCount - 1);
             if (target == _page) return;
-            AudioService.Play("tap");
+            AudioService.Play("page_flip");
             if (_transition != null) StopCoroutine(_transition);
             _transition = StartCoroutine(PageFlip(target, dir));
         }
@@ -197,6 +197,7 @@ namespace GridCut.Game
         IEnumerator ProgressIntro()
         {
             if (GridContent == null) yield break;
+            AudioService.Play("level_unlock");
             int start = _page * PerPage + 1;
             int slot = SaveStore.UnlockedLevel - start;
             RectTransform btn = null;

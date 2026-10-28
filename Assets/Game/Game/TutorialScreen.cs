@@ -522,7 +522,7 @@ namespace GridCut.Game
         {
             if (_index != 4 || _session == null || _session.IsSolved || _session.HintsLeft <= 0) return;
             if (!_session.TryGetHintTarget(out int ci, out _)) return;
-            AudioService.Play("tap");
+            AudioService.Play("hint");
             _idle = 0f;
             var session = _session;
             Board.HintPulse(ci, () => session.ApplyHint(ci));

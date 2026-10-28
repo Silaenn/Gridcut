@@ -404,7 +404,7 @@ namespace GridCut.Game
         {
             Board.ShowPlaced();
             if (!_suppressRemoveFx) Board.PlayRemoveFx(ci, r);
-            AudioService.Play("tap");
+            AudioService.Play("remove");
             SavePlay();
         }
 
@@ -465,7 +465,6 @@ namespace GridCut.Game
             _winStarCount = stars;
             _winTheme = theme;
             LevelCompleted?.Invoke(_levelId, stars);
-            if (unlocking) AudioService.Play("unlock");
 
             if (_winCo != null) StopCoroutine(_winCo);
             _winCo = StartCoroutine(WinSequence(prevBest, wasCompleted, theme));
@@ -516,7 +515,7 @@ namespace GridCut.Game
                 if (WinStars[i] == null) continue;
                 var srt = (RectTransform)WinStars[i].transform;
                 srt.localScale = Vector3.zero;
-                AudioService.Play("step");
+                AudioService.Play("star" + (i + 1));
                 yield return PopStar(srt, 0.20f);
                 StartCoroutine(StarBurst(srt));
                 yield return new WaitForSecondsRealtime(0.10f);
@@ -676,9 +675,11 @@ namespace GridCut.Game
 
             if (_winTheme != null && WinBanner != null)
             {
+                bool wasActive = WinBanner.activeSelf;
                 if (_bannerCo != null) { StopCoroutine(_bannerCo); _bannerCo = null; }
                 WinBanner.SetActive(true);
                 if (_bannerGroup != null) _bannerGroup.alpha = 1f;
+                if (!wasActive) AudioService.Play("theme_unlock");
                 ((RectTransform)WinBanner.transform).anchoredPosition = _bannerRest;
                 _bannerCo = StartCoroutine(BannerHideAfter(2.2f));
             }
@@ -790,6 +791,7 @@ namespace GridCut.Game
 
         IEnumerator PopBest()
         {
+            AudioService.Play("newbest");
             var rt = (RectTransform)WinNewBest.transform;
             var g = _bestGroup;
             var from = _bestRest - new Vector2(0f, 24f);
@@ -849,6 +851,7 @@ namespace GridCut.Game
             if (!_winOpen || WinBanner == null) { _bannerCo = null; yield break; }
             WinBanner.SetActive(true);
             if (_bannerGroup != null) _bannerGroup.alpha = 1f;
+            AudioService.Play("theme_unlock");
             var rt = (RectTransform)WinBanner.transform;
             var above = _bannerRest + new Vector2(0f, 136f);
             rt.anchoredPosition = above;
@@ -905,6 +908,7 @@ namespace GridCut.Game
         public void NextLevel()
         {
             if (_levelId >= SaveStore.LevelCount) { GoHome(); return; }
+            AudioService.Play("tap");
             CloseWin();
             Show(Mathf.Min(_levelId + 1, SaveStore.LevelCount));
         }
@@ -918,6 +922,7 @@ namespace GridCut.Game
 
         public void GoHome()
         {
+            AudioService.Play("tap");
             CloseWin();
             AppRoot.Instance.OpenHome();
         }
@@ -946,7 +951,7 @@ namespace GridCut.Game
         {
             if (_session == null || _session.IsSolved || _session.HintsLeft <= 0) return;
             if (!_session.TryGetHintTarget(out int ci, out _)) return;
-            AudioService.Play("tap");
+            AudioService.Play("hint");
             var session = _session;
             Board.HintPulse(ci, () => session.ApplyHint(ci));
         }

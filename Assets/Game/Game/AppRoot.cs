@@ -157,6 +157,8 @@ namespace GridCut.Game
             }
             ShowOnly(go);
             if (_decor != null) _decor.SetBoxesVisible(id == ScreenId.Home);
+            AudioService.PlayMusic(
+                id == ScreenId.Home || id == ScreenId.LevelSelect ? "home" : "game");
 
             // per-screen refresh; Gameplay refreshes via StartLevel (needs levelId)
             switch (id)

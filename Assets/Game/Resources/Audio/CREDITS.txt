@@ -1,0 +1,49 @@
+GridCut audio credits
+=====================
+
+All music and sound effects in this folder are CC0 (public domain).
+Attribution is not required, but the sources are listed below.
+
+BGM
+---
+"Good Morning" by Cakeflaps / You're Perfect Studio
+  Source: https://opengameart.org/content/good-morning
+  License: CC0 1.0 (also offered as CC-BY/OGA-BY; used under CC0)
+  Used as: bgm_home.ogg (cute, playful loop)
+
+"Happy Adventure (Loop)" by TinyWorlds
+  Source: https://opengameart.org/content/happy-adventure-loop
+  License: CC0 1.0
+  Used as: bgm_game.ogg (light, fun chiptune loop)
+
+SFX
+---
+Kenney (https://kenney.nl)
+  Interface Sounds - CC0
+    https://kenney.nl/assets/interface-sounds
+  UI Audio - CC0
+    https://kenney.nl/assets/ui-audio
+  Impact Sounds - CC0
+    https://kenney.nl/assets/impact-sounds
+  Casino Audio - CC0
+    https://kenney.nl/assets/casino-audio
+  RPG Audio - CC0
+    https://kenney.nl/assets/rpg-audio
+  Music Jingles - CC0
+    https://kenney.nl/assets/music-jingles
+
+Packs used for: single UI click (all buttons), drag/place (Casino card
+sounds), remove, invalid, hint, star ticks (RPG coin chime, pitched up per
+star), new best, theme unlock, level unlock, and tutorial step.
+
+"Win Jingle" (WinBrass version) by Fupi
+  Source: https://opengameart.org/content/win-jingle
+  License: CC0 1.0
+  Used as: sfx_win.ogg
+
+Processing
+----------
+Card drag/place clips were trimmed and faded so they sit under the puzzle's
+short interaction sounds. Star chimes are three pitched versions of the same
+coin sample. BGM was left loopable; both tracks were loudness-matched to
+about -18 LUFS.
