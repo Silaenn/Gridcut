@@ -28,7 +28,9 @@ MonoBehaviour:
   InitW: 02000000
   InitH: 01000000
   Action: 1
-  Instruction: Tap a rectangle to remove it. Then finish the puzzle.
+  Instruction: 'Tap a rectangle to remove it.
+
+    Then finish the puzzle.'
   Success: You fixed it!
   AfterRemoval: Now finish the puzzle.
   HasDemo: 1
@@ -37,6 +39,6 @@ MonoBehaviour:
   DemoStartRow: 1
   DemoEndCol: 0
   DemoEndRow: 1
-  DemoDelay: 2.0
+  DemoDelay: 2
   HintEnabled: 0
   HintDelay: 8

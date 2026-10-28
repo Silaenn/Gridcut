@@ -22,14 +22,14 @@ public static class CreateTutorialAssets
         Make(1, 3, 1, new[] { 1 }, new[] { 0 }, new[] { 3 }, new[] { 0 },
             new[] { 0 }, new[] { 0 }, new[] { 3 }, new[] { 1 },
             null, TutorialLesson.ActionKind.DragTarget,
-            "Drag across all 3 squares. The number shows how many.",
+            "Drag across all 3 squares.\nThe number shows how many.",
             "Nice! 3 squares for the number 3.", "",
             true, false, 0, 0, 2, 0, 0.8f, false);
 
         Make(2, 3, 2, new[] { 1 }, new[] { 1 }, new[] { 6 }, new[] { 1 },
             new[] { 0 }, new[] { 0 }, new[] { 3 }, new[] { 2 },
             null, TutorialLesson.ActionKind.DragTarget,
-            "Rectangles can be wide and tall. Drag from corner to corner.",
+            "Rectangles can be wide and tall.\nDrag from corner to corner.",
             "Great! 6 squares for the number 6.", "",
             true, false, 0, 0, 2, 1, 2f, false);
 
@@ -43,7 +43,7 @@ public static class CreateTutorialAssets
         Make(4, 3, 3, new[] { 0, 2, 0 }, new[] { 0, 1, 2 }, new[] { 2, 3, 4 }, new[] { 0, 2, 4 },
             new[] { 0, 2, 0 }, new[] { 0, 0, 1 }, new[] { 2, 1, 2 }, new[] { 1, 3, 2 },
             new[] { 0, 1, 2, 1 }, TutorialLesson.ActionKind.TapTarget,
-            "Tap a rectangle to remove it. Then finish the puzzle.",
+            "Tap a rectangle to remove it.\nThen finish the puzzle.",
             "You fixed it!", "Now finish the puzzle.",
             true, true, 0, 1, 0, 1, 2f, false);
 

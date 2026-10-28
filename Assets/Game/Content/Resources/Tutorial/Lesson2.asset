@@ -28,7 +28,9 @@ MonoBehaviour:
   InitW: 
   InitH: 
   Action: 0
-  Instruction: Rectangles can be wide and tall. Drag from corner to corner.
+  Instruction: 'Rectangles can be wide and tall.
+
+    Drag from corner to corner.'
   Success: Great! 6 squares for the number 6.
   AfterRemoval: 
   HasDemo: 1
@@ -37,6 +39,6 @@ MonoBehaviour:
   DemoStartRow: 0
   DemoEndCol: 2
   DemoEndRow: 1
-  DemoDelay: 2.0
+  DemoDelay: 2
   HintEnabled: 0
   HintDelay: 8

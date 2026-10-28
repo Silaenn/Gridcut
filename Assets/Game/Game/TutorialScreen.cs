@@ -464,6 +464,7 @@ namespace GridCut.Game
 
         void ContinuePressed()
         {
+            AudioService.Play("tap");
             if (_stepDone && _index >= 4) { ShowReady(); return; }
             if (_index + 1 < _lessons.Length) SetLesson(_index + 1);
         }
@@ -499,6 +500,7 @@ namespace GridCut.Game
 
         void ReadyPlayPressed()
         {
+            AudioService.Play("tap");
             var p = ReadyOverlay != null ? ReadyOverlay.GetComponent<PopupView>() : null;
             if (p != null) p.Hide();
             else if (ReadyOverlay != null) ReadyOverlay.SetActive(false);

@@ -28,7 +28,9 @@ MonoBehaviour:
   InitW: 
   InitH: 
   Action: 0
-  Instruction: Drag across all 3 squares. The number shows how many.
+  Instruction: 'Drag across all 3 squares.
+
+    The number shows how many.'
   Success: Nice! 3 squares for the number 3.
   AfterRemoval: 
   HasDemo: 1

@@ -312,6 +312,13 @@ namespace GridCut.Game
                 return;
             }
             AudioService.Play("tap");
+            // Level 1 adalah gerbang tutorial: pemain baru harus menyelesaikan
+            // tutorial dulu, termasuk kalau masuk lewat Level Select.
+            if (id == 1 && !SaveStore.TutorialDone)
+            {
+                AppRoot.Instance.StartTutorial();
+                return;
+            }
             AppRoot.Instance.StartLevel(id);
         }
 
