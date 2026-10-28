@@ -886,6 +886,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: GridCut.Game::GridCut.Game.ButtonFX
   ShadowDy: -12
+  SuppressStateAlpha: 0
 --- !u!114 &18858101
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -4610,6 +4611,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: GridCut.Game::GridCut.Game.ButtonFX
   ShadowDy: -12
+  SuppressStateAlpha: 0
 --- !u!114 &223499208
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -5049,6 +5051,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: GridCut.Game::GridCut.Game.ButtonFX
   ShadowDy: -16
+  SuppressStateAlpha: 0
 --- !u!114 &251923447
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -5943,6 +5946,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: GridCut.Game::GridCut.Game.ButtonFX
   ShadowDy: -16
+  SuppressStateAlpha: 0
 --- !u!114 &350152633
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -7573,6 +7577,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: GridCut.Game::GridCut.Game.ButtonFX
   ShadowDy: -12
+  SuppressStateAlpha: 0
 --- !u!114 &521705834
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -8987,6 +8992,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: GridCut.Game::GridCut.Game.ButtonFX
   ShadowDy: -16
+  SuppressStateAlpha: 0
 --- !u!114 &605486132
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -13257,6 +13263,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: GridCut.Game::GridCut.Game.ButtonFX
   ShadowDy: -12
+  SuppressStateAlpha: 0
 --- !u!114 &940654631
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -13497,6 +13504,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: GridCut.Game::GridCut.Game.ButtonFX
   ShadowDy: -12
+  SuppressStateAlpha: 0
 --- !u!114 &954446869
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -14586,7 +14594,7 @@ RectTransform:
   m_AnchorMin: {x: 0, y: 1}
   m_AnchorMax: {x: 0, y: 1}
   m_AnchoredPosition: {x: 40, y: -24}
-  m_SizeDelta: {x: 144, y: 144}
+  m_SizeDelta: {x: 120, y: 120}
   m_Pivot: {x: 0, y: 1}
 --- !u!225 &1028496655
 CanvasGroup:
@@ -14613,6 +14621,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: GridCut.Game::GridCut.Game.ButtonFX
   ShadowDy: -12
+  SuppressStateAlpha: 0
 --- !u!114 &1028496657
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -16009,8 +16018,8 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 1}
   m_AnchorMax: {x: 0, y: 1}
-  m_AnchoredPosition: {x: 208, y: -24}
-  m_SizeDelta: {x: 144, y: 144}
+  m_AnchoredPosition: {x: 184, y: -24}
+  m_SizeDelta: {x: 120, y: 120}
   m_Pivot: {x: 0, y: 1}
 --- !u!225 &1109804193
 CanvasGroup:
@@ -16037,6 +16046,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: GridCut.Game::GridCut.Game.ButtonFX
   ShadowDy: -12
+  SuppressStateAlpha: 0
 --- !u!114 &1109804195
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -16831,7 +16841,7 @@ RectTransform:
   m_AnchorMin: {x: 1, y: 1}
   m_AnchorMax: {x: 1, y: 1}
   m_AnchoredPosition: {x: -40, y: -24}
-  m_SizeDelta: {x: 220, y: 144}
+  m_SizeDelta: {x: 144, y: 120}
   m_Pivot: {x: 1, y: 1}
 --- !u!225 &1191865154
 CanvasGroup:
@@ -16858,6 +16868,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: GridCut.Game::GridCut.Game.ButtonFX
   ShadowDy: -12
+  SuppressStateAlpha: 0
 --- !u!114 &1191865156
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -17149,6 +17160,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: GridCut.Game::GridCut.Game.ButtonFX
   ShadowDy: -12
+  SuppressStateAlpha: 0
 --- !u!114 &1198605254
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -18330,6 +18342,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: GridCut.Game::GridCut.Game.ButtonFX
   ShadowDy: -12
+  SuppressStateAlpha: 0
 --- !u!114 &1302263907
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -21225,6 +21238,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: GridCut.Game::GridCut.Game.ButtonFX
   ShadowDy: -16
+  SuppressStateAlpha: 0
 --- !u!114 &1517032212
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -22589,6 +22603,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: GridCut.Game::GridCut.Game.ButtonFX
   ShadowDy: -12
+  SuppressStateAlpha: 0
 --- !u!114 &1646705883
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -24958,6 +24973,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: GridCut.Game::GridCut.Game.ButtonFX
   ShadowDy: -12
+  SuppressStateAlpha: 0
 --- !u!114 &1822101213
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -26254,6 +26270,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: GridCut.Game::GridCut.Game.ButtonFX
   ShadowDy: -16
+  SuppressStateAlpha: 0
 --- !u!114 &1935409501
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -27047,6 +27064,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: GridCut.Game::GridCut.Game.ButtonFX
   ShadowDy: -16
+  SuppressStateAlpha: 0
 --- !u!114 &2000967546
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -44337,6 +44355,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: GridCut.Game::GridCut.Game.ButtonFX
   ShadowDy: -12
+  SuppressStateAlpha: 0
 --- !u!114 &7777002231810002
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -44350,6 +44369,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: GridCut.Game::GridCut.Game.ButtonFX
   ShadowDy: -12
+  SuppressStateAlpha: 0
 --- !u!114 &7777002231810005
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -44363,6 +44383,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: GridCut.Game::GridCut.Game.ButtonFX
   ShadowDy: -12
+  SuppressStateAlpha: 0
 --- !u!114 &7777002231810007
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -44376,6 +44397,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: GridCut.Game::GridCut.Game.ButtonFX
   ShadowDy: -12
+  SuppressStateAlpha: 0
 --- !u!114 &7777002231810009
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -44389,6 +44411,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: GridCut.Game::GridCut.Game.ButtonFX
   ShadowDy: -10
+  SuppressStateAlpha: 0
 --- !u!114 &7777002231810011
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -44402,6 +44425,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: GridCut.Game::GridCut.Game.ButtonFX
   ShadowDy: -12
+  SuppressStateAlpha: 0
 --- !u!114 &7777002231810012
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -44415,6 +44439,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: GridCut.Game::GridCut.Game.ButtonFX
   ShadowDy: -16
+  SuppressStateAlpha: 0
 --- !u!114 &7777002231810014
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -44428,6 +44453,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: GridCut.Game::GridCut.Game.ButtonFX
   ShadowDy: -12
+  SuppressStateAlpha: 0
 --- !u!114 &7777002231810015
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -44441,6 +44467,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: GridCut.Game::GridCut.Game.ButtonFX
   ShadowDy: -12
+  SuppressStateAlpha: 0
 --- !u!114 &7777002231810016
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -44454,6 +44481,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: GridCut.Game::GridCut.Game.ButtonFX
   ShadowDy: -10
+  SuppressStateAlpha: 0
 --- !u!114 &7777002231810018
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -44467,6 +44495,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: GridCut.Game::GridCut.Game.ButtonFX
   ShadowDy: -10
+  SuppressStateAlpha: 0
 --- !u!114 &7777002231810019
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -44480,6 +44509,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: GridCut.Game::GridCut.Game.ButtonFX
   ShadowDy: -10
+  SuppressStateAlpha: 0
 --- !u!114 &7777002231810020
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -44493,6 +44523,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: GridCut.Game::GridCut.Game.ButtonFX
   ShadowDy: -12
+  SuppressStateAlpha: 0
 --- !u!114 &7777002231810022
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -44506,6 +44537,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: GridCut.Game::GridCut.Game.ButtonFX
   ShadowDy: -10
+  SuppressStateAlpha: 0
 --- !u!114 &7777002231810025
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -44519,6 +44551,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: GridCut.Game::GridCut.Game.ButtonFX
   ShadowDy: -12
+  SuppressStateAlpha: 0
 --- !u!114 &7777002231810026
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -44532,6 +44565,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: GridCut.Game::GridCut.Game.ButtonFX
   ShadowDy: -12
+  SuppressStateAlpha: 0
 --- !u!114 &7777002231810027
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -44545,6 +44579,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: GridCut.Game::GridCut.Game.ButtonFX
   ShadowDy: -12
+  SuppressStateAlpha: 0
 --- !u!114 &7777002231810028
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -44558,6 +44593,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: GridCut.Game::GridCut.Game.ButtonFX
   ShadowDy: -12
+  SuppressStateAlpha: 0
 --- !u!114 &7777002231810029
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -44571,6 +44607,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: GridCut.Game::GridCut.Game.ButtonFX
   ShadowDy: -12
+  SuppressStateAlpha: 0
 --- !u!114 &7777002231810030
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -44584,6 +44621,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: GridCut.Game::GridCut.Game.ButtonFX
   ShadowDy: -12
+  SuppressStateAlpha: 0
 --- !u!114 &7777002231810031
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -44597,6 +44635,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: GridCut.Game::GridCut.Game.ButtonFX
   ShadowDy: -12
+  SuppressStateAlpha: 0
 --- !u!114 &7777002231810032
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -44610,6 +44649,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: GridCut.Game::GridCut.Game.ButtonFX
   ShadowDy: -12
+  SuppressStateAlpha: 0
 --- !u!114 &7777002231810033
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -44623,6 +44663,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: GridCut.Game::GridCut.Game.ButtonFX
   ShadowDy: -12
+  SuppressStateAlpha: 0
 --- !u!114 &7777002231810034
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -44636,6 +44677,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: GridCut.Game::GridCut.Game.ButtonFX
   ShadowDy: -12
+  SuppressStateAlpha: 0
 --- !u!114 &7777002231810035
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -44649,6 +44691,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: GridCut.Game::GridCut.Game.ButtonFX
   ShadowDy: -12
+  SuppressStateAlpha: 0
 --- !u!114 &7777002231810036
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -44662,6 +44705,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: GridCut.Game::GridCut.Game.ButtonFX
   ShadowDy: -12
+  SuppressStateAlpha: 0
 --- !u!114 &7777002231810037
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -44675,6 +44719,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: GridCut.Game::GridCut.Game.ButtonFX
   ShadowDy: -12
+  SuppressStateAlpha: 0
 --- !u!114 &7777002231810038
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -44688,6 +44733,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: GridCut.Game::GridCut.Game.ButtonFX
   ShadowDy: -12
+  SuppressStateAlpha: 0
 --- !u!114 &7777002231810039
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -44701,6 +44747,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: GridCut.Game::GridCut.Game.ButtonFX
   ShadowDy: -12
+  SuppressStateAlpha: 0
 --- !u!114 &7777002231810040
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -44714,6 +44761,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: GridCut.Game::GridCut.Game.ButtonFX
   ShadowDy: -12
+  SuppressStateAlpha: 0
 --- !u!225 &7777002231820001
 CanvasGroup:
   m_ObjectHideFlags: 0

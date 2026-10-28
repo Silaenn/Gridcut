@@ -57,57 +57,36 @@ Do not add unrelated tags for reach. itch.io's quality guidelines explicitly pen
 
 About the AI disclosure: levels are produced by a deterministic solver-based generator, which itch treats as procedural generation, not generative AI. The code and some UI text were produced with AI assistance, so the honest setting is Code + Text & Dialog. If you prefer not to disclose code, that is your call, but it would not match itch.io's definition.
 
-## Long description
+## Description
 
-Paste this into the description editor. Select the short section titles and apply **Header 2** from the formatting menu. Keep the bullet list as a bullet list.
+Paste this into the description editor. Select the section titles and apply **Header 2** from the formatting menu. Keep the bullet list as a bullet list.
 
 ```text
-GridCut is a small logic puzzle about cutting a grid into rectangles.
+GridCut is a logic puzzle about cutting a grid into rectangles.
 
-Every number on the board belongs to one rectangle and tells you its area. Drag from one cell to another to draw that rectangle. It has to contain exactly one number, cover the right number of cells, and not overlap anything else. Fill the board and the level is done.
-
-That is the whole game. The hard part is working out where each piece goes.
-
-150 levels, one solution each
-
-Every board is checked by a solver before it ships. It has exactly one solution, and the solver can reach it with deduction alone. You should never have to guess, and undo and reset are always there if you get stuck.
-
-The first few levels are a tutorial. After that the boards grow from 5x5 to 14x8. New ideas show up every few levels, but the game never throws a wall at you. If a level takes a while, that is the point.
+Each number tells you the area of the piece that covers it. Drag to draw a rectangle, fill the board, and move on. Every level has one solution and can be solved by deduction alone, so you never have to guess.
 
 Features
 
-- 150 levels across nine board sizes
-- No timer, no lives, no rush
-- 3 hints per level
-- Undo and reset at any time
+- 150 levels across nine board sizes, from 5x5 to 14x8
+- 3 hints per level, plus undo and reset
 - Stars for solving with fewer hints
-- 5 color themes, unlocked as you play
-- Progress saves automatically
+- 5 color themes unlocked as you play
+- No timer, no ads, no account
 - Mouse and touch controls
-- No ads, no account, no install
+- Progress saves automatically
 
 Controls
 
-- Mouse: click and drag across the grid
-- Touch: drag with one finger
-- Tap a single cell to place a 1x1 piece
-- Esc or Back: leave the level
+Drag to draw. Tap a cell for a 1x1 piece. Esc or Back leaves the level.
 
 Credits
 
-Game design, code, and levels: Silaenn
-Music: Cakeflaps, TinyWorlds (CC0)
-Sound effects: Kenney, Fupi (CC0)
-Font: Fredoka (SIL Open Font License)
+Design, code, and levels: Silaenn
+Music and sound: CC0 assets by Cakeflaps, TinyWorlds, Kenney, and Fupi
 Built with Unity.
 
-Bug reports
-
-If a level looks wrong or something breaks, leave a comment with the level number and what happened. Please mention your browser and whether you were on desktop or mobile.
-
-AI disclosure
-
-No AI-generated art, music, or voice is used in the game. Some code and UI text were drafted with AI assistance and reviewed by me.
+AI disclosure: no AI-generated art, music, or voice. Some code and UI text were drafted with AI assistance and reviewed by me.
 ```
 
 ## Shorter blurb (for social posts, devlog, Reddit)
@@ -161,22 +140,23 @@ Optional trailer: 15–30 seconds, no voice, show one drag, one completed board,
 ## Upload the build
 
 1. Build the WebGL player to `Builds/WebGL`.
-2. Check that `Builds/WebGL/index.html` exists.
-3. Zip the **contents** of that folder, not the folder itself:
+2. In **Player Settings → WebGL → Resolution and Presentation**, keep **Default Canvas Width = 1280** and **Default Canvas Height = 720**. The project is already set to this. Do not leave it at 960x600: that is not 16:9 and the default Unity template will letterbox or crop.
+3. Check that `Builds/WebGL/index.html` exists.
+4. Zip the **contents** of that folder, not the folder itself:
 
 ```bash
 cd Builds/WebGL
 zip -r ../../GridCut-WebGL-v1.0.zip . -x '*.DS_Store'
 ```
 
-4. The ZIP must have `index.html` at its root. itch.io will reject a ZIP whose entry point is inside a subfolder.
-5. Current Unity settings in this project: Gzip compression, decompression fallback off, 32 MB WebGL memory. If the page loads but crashes, raise WebGL memory to 256 MB. If assets fail to load, switch compression to Brotli or enable decompression fallback, then rebuild.
-6. itch.io HTML5 limits: at most 1,000 files, 500 MB extracted total, 200 MB per file. This project is far below those limits.
-7. Upload the ZIP as an HTML file. Check **This file will be played in the browser**. Leave **This file is a demo** unchecked.
+5. The ZIP must have `index.html` at its root. itch.io will reject a ZIP whose entry point is inside a subfolder.
+6. Current Unity settings in this project: Gzip compression, decompression fallback off, 256 MB WebGL memory. If assets fail to load, switch compression to Brotli or enable decompression fallback, then rebuild.
+7. itch.io HTML5 limits: at most 1,000 files, 500 MB extracted total, 200 MB per file. This project is far below those limits.
+8. Upload the ZIP as an HTML file. Check **This file will be played in the browser**. Leave **This file is a demo** unchecked.
 
 Embed settings:
 
-- Launch mode: **Embed in page** with a 1280×720 viewport, plus the fullscreen button. If the embed feels cramped, switch to **Click to launch in fullscreen**.
+- Launch mode: **Embed in page** with a 1280×720 viewport, plus the fullscreen button. If the embed feels cramped, switch to **Click to launch in fullscreen**. The default Unity template is fixed-size on desktop; if fullscreen crops the board, use a responsive WebGL template.
 - **Click to play**: on.
 - **Fullscreen button**: on.
 - **Scrollbars**: off.
