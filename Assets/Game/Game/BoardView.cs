@@ -478,13 +478,14 @@ namespace GridCut.Game
             Vector3 rest = rt.localScale;
             for (float t = 0f; t < 0.16f; t += Time.unscaledDeltaTime)
             {
+                if (rt == null) yield break;
                 float k = Mathf.Clamp01(t / 0.16f);
                 float s = k < 0.5f ? Mathf.Lerp(0.92f, 1.04f, k / 0.5f)
                                    : Mathf.Lerp(1.04f, 1f, (k - 0.5f) / 0.5f);
                 rt.localScale = new Vector3(rest.x * s, rest.y * s, rest.z);
                 yield return null;
             }
-            rt.localScale = rest;
+            if (rt != null) rt.localScale = rest;
         }
 
         System.Collections.IEnumerator PlaceFlashCo(RectI rect)
@@ -504,6 +505,7 @@ namespace GridCut.Game
             var c = ThemeApplier.ColorOf(ThemeApplier.Role.Accent);
             for (float t = 0f; t < 0.18f; t += Time.unscaledDeltaTime)
             {
+                if (go == null) yield break;
                 float k = Mathf.Clamp01(t / 0.18f);
                 c.a = 0.3f * (1f - k);
                 im.color = c;
@@ -551,6 +553,7 @@ namespace GridCut.Game
             var cg = go.AddComponent<CanvasGroup>();
             for (float t = 0f; t < 0.16f; t += Time.unscaledDeltaTime)
             {
+                if (go == null) yield break;
                 float k = Mathf.Clamp01(t / 0.16f);
                 cg.alpha = 1f - k;
                 float s = 1f - 0.15f * k;
@@ -573,13 +576,14 @@ namespace GridCut.Game
             Vector3 rest = rt.localScale;
             for (float t = 0f; t < 0.2f; t += Time.unscaledDeltaTime)
             {
+                if (rt == null) yield break;
                 float k = Mathf.Clamp01(t / 0.2f);
                 float s = k < 0.5f ? Mathf.Lerp(1f, 1.18f, k / 0.5f)
                                    : Mathf.Lerp(1.18f, 1f, (k - 0.5f) / 0.5f);
                 rt.localScale = new Vector3(rest.x * s, rest.y * s, rest.z);
                 yield return null;
             }
-            rt.localScale = rest;
+            if (rt != null) rt.localScale = rest;
         }
 
         System.Collections.IEnumerator BoardGlowCo()
@@ -602,6 +606,7 @@ namespace GridCut.Game
             var c = ThemeApplier.ColorOf(ThemeApplier.Role.Accent);
             for (float t = 0f; t < 0.6f; t += Time.unscaledDeltaTime)
             {
+                if (go == null) yield break;
                 float k = Mathf.Clamp01(t / 0.6f);
                 c.a = 0.5f * Mathf.Sin(k * Mathf.PI);
                 im.color = c;

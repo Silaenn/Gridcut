@@ -499,7 +499,7 @@ namespace GridCut.Game
             if (!SaveStore.ReduceMotion)
             {
                 Board.Celebrate();
-                yield return new WaitForSecondsRealtime(0.8f);
+                yield return new WaitForSecondsRealtime(0.35f);
             }
 
             PrepareWinContent(prevBest, wasCompleted, theme);
@@ -507,6 +507,7 @@ namespace GridCut.Game
             _winOpen = true;
             _winAnimating = true;
             _winIdle = 0f;
+            SetWinButtonsAlphaSuppressed(true);
             ResetWinVisuals();
 
             if (SaveStore.ReduceMotion)
@@ -516,14 +517,14 @@ namespace GridCut.Game
                 yield break;
             }
 
-            yield return FadeGroup(WinDimGroup, 0f, 1f, 0.12f);
-            yield return PanelOpen(0.18f);
+            yield return FadeGroup(WinDimGroup, 0f, 1f, 0.08f);
+            yield return PanelOpen(0.12f);
 
             StartCoroutine(MoveFadeGroup(_titleGroup, (RectTransform)WinTitle.transform,
-                _titleRest + new Vector2(0f, 24f), _titleRest, 0.16f));
+                _titleRest + new Vector2(0f, 24f), _titleRest, 0.10f));
             StartCoroutine(MoveFadeGroup(_subGroup, (RectTransform)WinDetail.transform,
-                _subRest + new Vector2(0f, 24f), _subRest, 0.16f));
-            yield return new WaitForSecondsRealtime(0.16f);
+                _subRest + new Vector2(0f, 24f), _subRest, 0.10f));
+            yield return new WaitForSecondsRealtime(0.10f);
 
             for (int i = 0; i < 3 && WinStars != null && i < WinStars.Length; i++)
             {
@@ -531,9 +532,9 @@ namespace GridCut.Game
                 var srt = (RectTransform)WinStars[i].transform;
                 srt.localScale = Vector3.zero;
                 AudioService.Play("star" + (i + 1));
-                yield return PopStar(srt, 0.20f);
+                yield return PopStar(srt, 0.12f);
                 StartCoroutine(StarBurst(srt));
-                yield return new WaitForSecondsRealtime(0.10f);
+                yield return new WaitForSecondsRealtime(0.04f);
             }
 
             if (theme != null && WinBanner != null)
@@ -544,16 +545,17 @@ namespace GridCut.Game
 
             if (WinNewBest != null && WinNewBest.activeSelf) StartCoroutine(PopBest());
             StartCoroutine(MoveFadeGroup(_reasonGroup, (RectTransform)WinReason.transform,
-                _reasonRest - new Vector2(0f, 24f), _reasonRest, 0.15f));
-            yield return new WaitForSecondsRealtime(0.18f);
+                _reasonRest - new Vector2(0f, 24f), _reasonRest, 0.10f));
+            yield return new WaitForSecondsRealtime(0.08f);
 
             yield return RiseButton(_menuGroup, WinMenuBtn != null ? (RectTransform)WinMenuBtn.transform : null, _menuRest);
-            yield return new WaitForSecondsRealtime(0.06f);
+            yield return new WaitForSecondsRealtime(0.02f);
             yield return RiseButton(_nextGroup, WinNextBtn != null ? (RectTransform)WinNextBtn.transform : null, _nextRest);
-            yield return new WaitForSecondsRealtime(0.06f);
+            yield return new WaitForSecondsRealtime(0.02f);
             yield return RiseButton(_repeatGroup, WinRepeatBtn != null ? (RectTransform)WinRepeatBtn.transform : null, _repeatRest);
 
             RebaseButton(WinMenuBtn); RebaseButton(WinNextBtn); RebaseButton(WinRepeatBtn);
+            SetWinButtonsAlphaSuppressed(false);
             EnableWinButtons(true);
             _winAnimating = false;
             _winIdle = 0f;
@@ -701,6 +703,7 @@ namespace GridCut.Game
             else if (WinBanner != null) WinBanner.SetActive(false);
 
             RebaseButton(WinMenuBtn); RebaseButton(WinNextBtn); RebaseButton(WinRepeatBtn);
+            SetWinButtonsAlphaSuppressed(false);
             EnableWinButtons(true);
             if (WinNextBtn != null) WinNextBtn.transform.localScale = Vector3.one;
             _winAnimating = false;
@@ -730,6 +733,20 @@ namespace GridCut.Game
             b.interactable = on;
             var cg = b.GetComponent<CanvasGroup>();
             if (cg != null) cg.blocksRaycasts = on;   // tombol tidak bisa diklik selama animasi
+        }
+
+        void SetWinButtonsAlphaSuppressed(bool on)
+        {
+            SetFxSuppress(WinMenuBtn, on);
+            SetFxSuppress(WinNextBtn, on);
+            SetFxSuppress(WinRepeatBtn, on);
+        }
+
+        static void SetFxSuppress(Button b, bool on)
+        {
+            if (b == null) return;
+            var fx = b.GetComponent<ButtonFX>();
+            if (fx != null) fx.SuppressStateAlpha = on;
         }
 
         static void SetGroup(CanvasGroup g, float a)
@@ -781,9 +798,9 @@ namespace GridCut.Game
         {
             if (g == null || rt == null) yield break;
             var from = rest - new Vector2(0f, 24f);
-            for (float t = 0f; t < 0.15f; t += Time.unscaledDeltaTime)
+            for (float t = 0f; t < 0.09f; t += Time.unscaledDeltaTime)
             {
-                float k = Mathf.Clamp01(t / 0.15f);
+                float k = Mathf.Clamp01(t / 0.09f);
                 g.alpha = k;
                 rt.anchoredPosition = Vector2.Lerp(from, rest, k * k * (3f - 2f * k));
                 yield return null;

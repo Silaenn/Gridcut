@@ -30,6 +30,9 @@ namespace GridCut.Game
         bool _restKnown;
         Coroutine _tween;
         bool _interactable = true;
+        /// <summary>True saat animasi masuk overlay win: jangan biarkan state
+        /// nonaktif menimpa alpha entrance.</summary>
+        public bool SuppressStateAlpha;
         bool _hover;
         bool _pressed;
 
@@ -63,7 +66,7 @@ namespace GridCut.Game
             bool inter = _btn == null || _btn.interactable;
             if (inter == _interactable) return;
             _interactable = inter;
-            if (_group != null) _group.alpha = inter ? 1f : 0.45f;
+            if (_group != null && !SuppressStateAlpha) _group.alpha = inter ? 1f : 0.45f;
             if (!inter)
             {
                 _hover = false;
