@@ -118,15 +118,15 @@ Fonts: **Fredoka** for headers, **Nunito** for body text. Both are on Google Fon
 
 Layout: keep the default **single column** for an HTML game so the game gets the full content width. Upload the screenshots anyway, then insert two or three of them into the description below the intro. For HTML5 pages itch hides the screenshot sidebar by default.
 
-Banner: use `banner-1920x1080.png` if you want a header image. It is optional.
+Banner: use `banner-1920x600.png` if you want a header image. It is optional.
 
 ## Assets in this repo
 
 | File | Use |
 |---|---|
-| `docs/itch/cover-630x500.png` | itch cover (minimum / normal size) |
+| `docs/itch/cover-630x500.png` | itch cover: GridCut logo + puzzle board, no caption |
 | `docs/itch/cover-1260x1000.png` | itch cover, 2x for retina |
-| `docs/itch/banner-1920x1080.png` | optional page banner |
+| `docs/itch/banner-1920x600.png` | optional page banner: GridCut logo only |
 | `docs/itch/02-gameplay.png` | screenshot 1, main gameplay |
 | `docs/itch/03-level-complete.png` | screenshot 2, win overlay |
 | `docs/itch/04-themes.png` | screenshot 3, theme picker (shows the fixed X) |
